@@ -13,6 +13,7 @@ import { track } from "@/lib/track";
 import { submitPublicForm, publicFormError } from "@/lib/public-forms.functions";
 import { ProviderReviews } from "@/components/ProviderReviews";
 import { WorkingHoursView } from "@/components/WorkingHoursView";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const Route = createFileRoute("/provider/$id")({
   head: () => ({
@@ -107,6 +108,8 @@ function ProviderPage() {
           </>
         )}
       </main>
+
+      <SiteFooter />
     </div>
   );
 }
@@ -136,17 +139,17 @@ function ReportBox({ providerId }: { providerId: string }) {
     );
 
   return (
-    <section className="surface mt-4 grid gap-3 p-5">
+    <section className="surface mt-4 grid gap-3 p-5" suppressHydrationWarning>
       <h2 className="text-lg font-extrabold">الإبلاغ عن مشكلة</h2>
-      <input value={hp} onChange={(e) => setHp(e.target.value)} name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
-      <select value={reason} onChange={(e) => setReason(e.target.value as typeof reason)} className="rounded-xl border border-border bg-card px-3 py-3 text-base">
+      <input value={hp} onChange={(e) => setHp(e.target.value)} name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" suppressHydrationWarning />
+      <select value={reason} onChange={(e) => setReason(e.target.value as typeof reason)} className="rounded-xl border border-border bg-card px-3 py-3 text-base" suppressHydrationWarning>
         <option>رقم الهاتف لا يعمل</option>
         <option>البيانات غير صحيحة</option>
         <option>الصنايعي لا يعمل بهذه الصنعة</option>
         <option>البيانات قديمة</option>
         <option>سبب آخر</option>
       </select>
-      <textarea value={details} onChange={(e) => setDetails(e.target.value)} maxLength={500} rows={3} placeholder="تفاصيل (اختياري)" className="rounded-xl border border-border bg-card px-3 py-3 text-base" />
+      <textarea value={details} onChange={(e) => setDetails(e.target.value)} maxLength={500} rows={3} placeholder="تفاصيل (اختياري)" className="rounded-xl border border-border bg-card px-3 py-3 text-base" suppressHydrationWarning />
       <div className="grid grid-cols-2 gap-2">
         <button disabled={busy} onClick={submit} className="rounded-xl bg-primary py-3 font-extrabold text-primary-foreground disabled:opacity-60">إرسال</button>
         <button onClick={() => setOpen(false)} className="rounded-xl border border-border py-3 font-bold">إلغاء</button>

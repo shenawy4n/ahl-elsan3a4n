@@ -122,12 +122,10 @@ export function Analytics() {
   return (
     <div className="grid gap-5">
       <RangePicker value={range} onChange={setRange} />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="مشاهدات الملفات" value={cnt("profile_view")} />
         <StatCard label="ضغطات الاتصال" value={cnt("phone_click")} />
-        <StatCard label="إظهار الرقم" value={cnt("phone_reveal")} />
         <StatCard label="ضغطات WhatsApp" value={cnt("whatsapp_click")} />
-        <StatCard label="نسبة التحويل للاتصال" value={rate(cnt("phone_click"), cnt("profile_view"))} />
         <StatCard label="عمليات البحث" value={cnt("search")} />
       </div>
 
@@ -136,7 +134,7 @@ export function Analytics() {
         {topList("whatsapp_click", "الأكثر ضغطات WhatsApp", MessageCircle, "مفيش ضغطات واتساب في الفترة دي.")}
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5 text-sm"><span className="font-bold">ترتيب حسب:</span>{sortBtn("phone_click", "ضغطات الاتصال")}{sortBtn("profile_view", "المشاهدات")}{sortBtn("phone_reveal", "إظهار الرقم")}{sortBtn("whatsapp_click", "WhatsApp")}</div>
+      <div className="flex flex-wrap items-center gap-1.5 text-sm"><span className="font-bold">ترتيب حسب:</span>{sortBtn("phone_click", "ضغطات الاتصال")}{sortBtn("profile_view", "المشاهدات")}{sortBtn("whatsapp_click", "WhatsApp")}</div>
 
       <section className="surface overflow-x-auto p-2">
         <h2 className="p-2 text-lg font-extrabold">حسب القسم</h2>
@@ -149,8 +147,8 @@ export function Analytics() {
       <section className="surface overflow-x-auto p-2">
         <h2 className="p-2 text-lg font-extrabold">حسب الصنايعي</h2>
         <table className="w-full text-sm">
-          <thead className="text-muted-foreground"><tr><th className={th}>اسم الصنايعي</th><th className={th}>الخدمة/الصنعة</th><th className={th}>عدد المشاهدات</th><th className={th}>إظهار الرقم</th><th className={th}>ضغطات الاتصال</th><th className={th}>ضغطات WhatsApp</th><th className={th}>نسبة التحويل للاتصال</th></tr></thead>
-          <tbody>{provSorted.map((r) => <tr key={r.p.id} className="border-t border-border"><td className="p-2 font-bold">{r.p.name}</td><td className="p-2">{r.p.categories?.name}</td><td className="p-2">{r.s.profile_view}</td><td className="p-2">{r.s.phone_reveal}</td><td className="p-2">{r.s.phone_click}</td><td className="p-2">{r.s.whatsapp_click}</td><td className="p-2">{rate(r.s.phone_click, r.s.profile_view)}</td></tr>)}</tbody>
+          <thead className="text-muted-foreground"><tr><th className={th}>اسم الصنايعي</th><th className={th}>الخدمة/الصنعة</th><th className={th}>عدد المشاهدات</th><th className={th}>ضغطات الاتصال</th><th className={th}>ضغطات WhatsApp</th><th className={th}>نسبة التحويل للاتصال</th></tr></thead>
+          <tbody>{provSorted.map((r) => <tr key={r.p.id} className="border-t border-border"><td className="p-2 font-bold">{r.p.name}</td><td className="p-2">{r.p.categories?.name}</td><td className="p-2">{r.s.profile_view}</td><td className="p-2">{r.s.phone_click}</td><td className="p-2">{r.s.whatsapp_click}</td><td className="p-2">{rate(r.s.phone_click, r.s.profile_view)}</td></tr>)}</tbody>
         </table>
       </section>
       <p className="flex items-center gap-1 text-xs text-muted-foreground"><Search className="size-3" /> زياراتك كمسؤول مش بتتحسب. ضغطة "اتصال" معناها إن الزائر ضغط الزرار، مش إن المكالمة تمت.</p>

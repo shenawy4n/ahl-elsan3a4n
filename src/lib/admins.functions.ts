@@ -13,7 +13,7 @@ export const addAdmin = createServerFn({ method: "POST" })
   .inputValidator((d) => schema.parse(d))
   .handler(async ({ data, context }) => {
     // Owner check + insert + audit happen inside the database function.
-    const { error } = await context.supabase.rpc("admin_add" as never, { _email: data.email } as never);
+    const { error } = await (context as any)?.supabase.rpc("admin_add" as never, { _email: data.email } as never);
     if (error) return { ok: false as const, code: error.message };
     if (data.password) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

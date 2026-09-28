@@ -9,6 +9,7 @@ import { categoriesQuery, areasQuery, providersQuery } from "@/lib/directory";
 import { ProviderCard } from "@/components/ProviderCard";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -54,7 +55,7 @@ function Home() {
             كل أرقام الصنايعية في مكان واحد. اتصل أو كلّمه واتساب على طول.
           </p>
 
-          <form onSubmit={submit} className="mt-4 space-y-3">
+          <form onSubmit={submit} className="mt-4 space-y-3" suppressHydrationWarning>
             <div className="surface flex items-center gap-3 px-4 py-3.5">
               <Search className="size-5 shrink-0 text-muted-foreground" />
               <input
@@ -63,6 +64,7 @@ function Home() {
                 maxLength={60}
                 className="w-full bg-transparent text-base outline-none placeholder:text-muted-foreground"
                 placeholder="ابحث باسم الصنايعي أو الخدمة"
+                suppressHydrationWarning
               />
             </div>
             <div className="surface flex items-center gap-3 px-4 py-2.5">
@@ -71,6 +73,7 @@ function Home() {
                 value={areaId}
                 onChange={(e) => setAreaId(e.target.value)}
                 className="w-full bg-transparent py-1 text-base outline-none"
+                suppressHydrationWarning
               >
                 <option value="">كل القرى والمناطق</option>
                 {(areas.data ?? []).map((a) => (
@@ -149,14 +152,9 @@ function Home() {
 
         <SuggestService />
         <NominateProvider categories={categories.data ?? []} areas={areas.data ?? []} />
-
-        <footer className="mt-10 flex items-center justify-center gap-2 border-t border-border pt-6 text-sm text-muted-foreground">
-          <ShieldCheck className="size-4" />
-          <Link to="/auth" className="font-bold">
-            دخول المسؤول
-          </Link>
-        </footer>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }
@@ -185,10 +183,10 @@ function SuggestService() {
           <Lightbulb className="size-5" /> مش لاقي الخدمة؟ اقترح خدمة
         </button>
       ) : (
-        <form onSubmit={send} className="grid gap-2">
+        <form onSubmit={send} className="grid gap-2" suppressHydrationWarning>
           <p className="font-extrabold">اقترح خدمة مش موجودة</p>
-          <input value={hp} onChange={(e) => setHp(e.target.value)} name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="مثال: تصليح موبايلات" className="rounded-xl border border-border bg-card px-3 py-3 text-base" />
+          <input value={hp} onChange={(e) => setHp(e.target.value)} name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" suppressHydrationWarning />
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="مثال: تصليح موبايلات" className="rounded-xl border border-border bg-card px-3 py-3 text-base" suppressHydrationWarning />
           <div className="grid grid-cols-2 gap-2">
             <button disabled={busy} className="rounded-xl bg-primary py-3 font-extrabold text-primary-foreground disabled:opacity-60">إرسال</button>
             <button type="button" onClick={() => setOpen(false)} className="rounded-xl border border-border py-3 font-bold">إلغاء</button>
@@ -225,22 +223,22 @@ function NominateProvider({ categories, areas }: { categories: { id: string; nam
           <UserPlus className="size-5" /> رشح حد
         </button>
       ) : (
-        <form onSubmit={send} className="grid gap-2">
+        <form onSubmit={send} className="grid gap-2" suppressHydrationWarning>
           <p className="font-extrabold">رشح صنايعي</p>
-          <input value={hp} onChange={(e) => setHp(e.target.value)} name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
-          <input value={f.name} onChange={set("name")} maxLength={80} placeholder="الاسم" className={cls} />
-          <input value={f.phone} onChange={set("phone")} maxLength={30} inputMode="tel" placeholder="التليفون" className={cls} />
-          <input value={f.whatsapp} onChange={set("whatsapp")} maxLength={30} inputMode="tel" placeholder="واتساب (اختياري)" className={cls} />
-          <select value={f.category_id} onChange={set("category_id")} className={cls}>
+          <input value={hp} onChange={(e) => setHp(e.target.value)} name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" suppressHydrationWarning />
+          <input value={f.name} onChange={set("name")} maxLength={80} placeholder="الاسم" className={cls} suppressHydrationWarning />
+          <input value={f.phone} onChange={set("phone")} maxLength={30} inputMode="tel" placeholder="التليفون" className={cls} suppressHydrationWarning />
+          <input value={f.whatsapp} onChange={set("whatsapp")} maxLength={30} inputMode="tel" placeholder="واتساب (اختياري)" className={cls} suppressHydrationWarning />
+          <select value={f.category_id} onChange={set("category_id")} className={cls} suppressHydrationWarning>
             <option value="">القسم</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <select value={f.area_id} onChange={set("area_id")} className={cls}>
+          <select value={f.area_id} onChange={set("area_id")} className={cls} suppressHydrationWarning>
             <option value="">المنطقة</option>
             {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
-          <textarea value={f.description} onChange={set("description")} maxLength={500} rows={2} placeholder="الوصف (اختياري)" className={cls} />
-          <input value={f.services} onChange={set("services")} maxLength={300} placeholder="الخدمات (اختياري)" className={cls} />
+          <textarea value={f.description} onChange={set("description")} maxLength={500} rows={2} placeholder="الوصف (اختياري)" className={cls} suppressHydrationWarning />
+          <input value={f.services} onChange={set("services")} maxLength={300} placeholder="الخدمات (اختياري)" className={cls} suppressHydrationWarning />
           <div className="grid grid-cols-2 gap-2">
             <button disabled={busy} className="rounded-xl bg-primary py-3 font-extrabold text-primary-foreground disabled:opacity-60">إرسال</button>
             <button type="button" onClick={() => setOpen(false)} className="rounded-xl border border-border py-3 font-bold">إلغاء</button>

@@ -6,6 +6,7 @@ import { ArrowRight, Search as SearchIcon, Loader2, X } from "lucide-react";
 import { areasQuery, categoriesQuery, experienceQuery, providersQuery } from "@/lib/directory";
 import { ProviderCard } from "@/components/ProviderCard";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import { AvailabilityFilter, type AvailabilityFilterMode } from "@/components/AvailabilityFilter";
 import { isProviderAvailableNow, isProviderEmergency24h } from "@/lib/working-hours";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -167,6 +168,8 @@ function CategoryPage() {
           </div>
         )}
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

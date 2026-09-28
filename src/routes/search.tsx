@@ -6,6 +6,7 @@ import { ArrowRight, Search as SearchIcon, X, Loader2 } from "lucide-react";
 import { areasQuery, categoriesQuery, providersQuery } from "@/lib/directory";
 import { ProviderCard } from "@/components/ProviderCard";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import { AvailabilityFilter, type AvailabilityFilterMode } from "@/components/AvailabilityFilter";
 import { isProviderAvailableNow, isProviderEmergency24h } from "@/lib/working-hours";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -100,6 +101,7 @@ function SearchPage() {
             maxLength={60}
             className="w-full bg-transparent text-base outline-none placeholder:text-muted-foreground"
             placeholder="ابحث باسم الصنايعي أو الخدمة"
+            suppressHydrationWarning
           />
           {q.trim() && (
             <button
@@ -119,6 +121,7 @@ function SearchPage() {
             value={area}
             onChange={(e) => setArea(e.target.value)}
             className="w-full bg-transparent py-1 text-base outline-none"
+            suppressHydrationWarning
           >
             <option value="">كل القرى والمناطق</option>
             {(areas.data ?? []).map((a) => (
@@ -162,6 +165,8 @@ function SearchPage() {
           </div>
         )}
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

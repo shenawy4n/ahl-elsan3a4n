@@ -62,13 +62,6 @@ export async function shareProviderViaWhatsapp(provider: {
   areaName?: string | null | undefined;
   isEmergency24h?: boolean | undefined;
 }) {
-  const r = await contact(provider.id, "phone_reveal");
-  if (!r?.phone) throw new NoNumberError();
-
-  const canonicalPhone = normalizeEgPhone(r.phone) || r.phone;
-  const canonicalWa = r.whatsapp ? (normalizeEgPhone(r.whatsapp) || r.whatsapp) : null;
-  const waClean = canonicalWa ? canonicalWa.replace(/[^\d]/g, "") : null;
-
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const profileUrl = `${origin}/provider/${provider.id}`;
 
@@ -79,10 +72,9 @@ export async function shareProviderViaWhatsapp(provider: {
     provider.categoryName ? `🏷️ الصنعة: ${provider.categoryName}` : null,
     provider.areaName ? `📍 المنطقة: ${provider.areaName}` : null,
     provider.isEmergency24h ? `⚡ متاح طوارئ ٢٤ ساعة: نعم` : null,
-    `📞 رقم الهاتف: ${canonicalPhone}`,
-    waClean ? `💬 واتساب: https://wa.me/${waClean}` : null,
     ``,
-    `🔗 رابط الملف الكامل: ${profileUrl}`,
+    `🔗 تواصل مع الصنايعي واطلب الخدمة عبر الرابط:`,
+    profileUrl,
     ``,
     `أهل الصنعة — كل صنعة عند أهلها`,
   ].filter(Boolean);
