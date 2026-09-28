@@ -281,7 +281,9 @@ export type Database = {
           description: string | null
           experience_id: string | null
           has_whatsapp: boolean | null
+          has_workshop: boolean | null
           id: string
+          is_emergency_24h: boolean | null
           is_premium: boolean
           is_verified: boolean
           name: string
@@ -295,6 +297,9 @@ export type Database = {
           updated_at: string
           whatsapp: string | null
           working_hours: string | null
+          working_hours_structured: Json | null
+          workshop_address: string | null
+          workshop_name: string | null
         }
         Insert: {
           area_id: string
@@ -303,7 +308,9 @@ export type Database = {
           description?: string | null
           experience_id?: string | null
           has_whatsapp?: boolean | null
+          has_workshop?: boolean | null
           id?: string
+          is_emergency_24h?: boolean | null
           is_premium?: boolean
           is_verified?: boolean
           name: string
@@ -317,6 +324,9 @@ export type Database = {
           updated_at?: string
           whatsapp?: string | null
           working_hours?: string | null
+          working_hours_structured?: Json | null
+          workshop_address?: string | null
+          workshop_name?: string | null
         }
         Update: {
           area_id?: string
@@ -325,7 +335,9 @@ export type Database = {
           description?: string | null
           experience_id?: string | null
           has_whatsapp?: boolean | null
+          has_workshop?: boolean | null
           id?: string
+          is_emergency_24h?: boolean | null
           is_premium?: boolean
           is_verified?: boolean
           name?: string
@@ -339,6 +351,9 @@ export type Database = {
           updated_at?: string
           whatsapp?: string | null
           working_hours?: string | null
+          working_hours_structured?: Json | null
+          workshop_address?: string | null
+          workshop_name?: string | null
         }
         Relationships: [
           {
@@ -441,6 +456,50 @@ export type Database = {
           },
         ]
       }
+      reviews: {
+        Row: {
+          comment: string
+          created_at: string
+          id: string
+          provider_id: string
+          rating: number
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewer_name: string | null
+          status: string
+        }
+        Insert: {
+          comment: string
+          created_at?: string
+          id?: string
+          provider_id: string
+          rating: number
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_name?: string | null
+          status?: string
+        }
+        Update: {
+          comment?: string
+          created_at?: string
+          id?: string
+          provider_id?: string
+          rating?: number
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_name?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_suggestions: {
         Row: {
           created_at: string
@@ -495,6 +554,7 @@ export type Database = {
         Returns: undefined
       }
       approve_application: { Args: { _id: string }; Returns: string }
+      approve_review: { Args: { _id: string }; Returns: undefined }
       check_rate_limit: {
         Args: { _form_type: string; _ip: string }
         Returns: boolean
@@ -509,6 +569,7 @@ export type Database = {
           whatsapp: string
         }[]
       }
+      delete_review: { Args: { _id: string }; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -523,6 +584,7 @@ export type Database = {
         Args: { _id: string; _reason: string }
         Returns: undefined
       }
+      reject_review: { Args: { _id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "user"

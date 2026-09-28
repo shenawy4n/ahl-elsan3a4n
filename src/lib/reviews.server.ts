@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import crypto from "node:crypto";
 
 export interface ReviewRecord {
@@ -28,39 +26,6 @@ export interface ProviderRatingSummary {
   count: number;
 }
 
-const DATA_DIR = path.resolve(process.cwd(), "data");
-const STORE_FILE = path.join(DATA_DIR, "reviews-store.json");
-
-function ensureStore(): ReviewRecord[] {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    if (!fs.existsSync(STORE_FILE)) {
-      fs.writeFileSync(STORE_FILE, JSON.stringify([]), "utf-8");
-      return [];
-    }
-    const raw = fs.readFileSync(STORE_FILE, "utf-8");
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error("[reviews.server] Error reading local store:", err);
-    return [];
-  }
-}
-
-function saveStore(records: ReviewRecord[]): void {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    const tmp = `${STORE_FILE}.${Date.now()}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(records, null, 2), "utf-8");
-    fs.renameSync(tmp, STORE_FILE);
-  } catch (err) {
-    console.error("[reviews.server] Error saving local store:", err);
-  }
-}
-
 /** Insert a new review (defaults to pending) */
 export async function createReview(data: {
   provider_id: string;
@@ -69,32 +34,28 @@ export async function createReview(data: {
   reviewer_name?: string | null;
 }): Promise<{ ok: boolean; id: string }> {
   const newId = crypto.randomUUID();
-  const record: ReviewRecord = {
+  const record = {
     id: newId,
     provider_id: data.provider_id,
     rating: data.rating,
     comment: data.comment,
     reviewer_name: data.reviewer_name?.trim() || null,
-    status: "pending",
+    status: "pending" as const,
     created_at: new Date().toISOString(),
   };
 
-  // 1. Try Supabase
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("reviews" as never).insert(record as never);
-    if (!error) {
-      return { ok: true, id: newId };
+    const { error } = await supabaseAdmin.from("reviews").insert(record);
+    if (error) {
+      console.error("[reviews.server] Error inserting review to Supabase:", error);
+      return { ok: false, id: newId };
     }
+    return { ok: true, id: newId };
   } catch (e) {
-    // Supabase table may not exist yet, fallback to store
+    console.error("[reviews.server] Exception inserting review:", e);
+    return { ok: false, id: newId };
   }
-
-  // 2. Fallback to resilient persistent store
-  const store = ensureStore();
-  store.unshift(record);
-  saveStore(store);
-  return { ok: true, id: newId };
 }
 
 /**
@@ -106,30 +67,21 @@ export async function getProviderApprovedReviews(providerId: string): Promise<Pu
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
-      .from("reviews" as never)
-      .select("id, provider_id, rating, comment, reviewer_name, created_at" as never)
-      .eq("provider_id" as never, providerId as never)
-      .eq("status" as never, "approved" as never)
-      .order("created_at" as never, { ascending: false } as never);
+      .from("reviews")
+      .select("id, provider_id, rating, comment, reviewer_name, created_at")
+      .eq("provider_id", providerId)
+      .eq("status", "approved")
+      .order("created_at", { ascending: false });
 
-    if (!error && Array.isArray(data)) {
-      return data as unknown as PublicReview[];
+    if (error) {
+      console.error("[reviews.server] Error fetching approved reviews:", error);
+      return [];
     }
+    return (data ?? []) as unknown as PublicReview[];
   } catch (e) {
-    // Fallback
+    console.error("[reviews.server] Exception fetching approved reviews:", e);
+    return [];
   }
-
-  const store = ensureStore();
-  return store
-    .filter((r) => r.provider_id === providerId && r.status === "approved")
-    .map((r) => ({
-      id: r.id,
-      provider_id: r.provider_id,
-      rating: r.rating,
-      comment: r.comment,
-      reviewer_name: r.reviewer_name,
-      created_at: r.created_at,
-    }));
 }
 
 /**
@@ -158,17 +110,18 @@ export async function getAllRatingSummaries(): Promise<Record<string, ProviderRa
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
-      .from("reviews" as never)
-      .select("provider_id, rating" as never)
-      .eq("status" as never, "approved" as never);
+      .from("reviews")
+      .select("provider_id, rating")
+      .eq("status", "approved");
 
-    if (!error && Array.isArray(data)) {
-      approvedReviews = data as unknown as { provider_id: string; rating: number }[];
-    } else {
-      approvedReviews = ensureStore().filter((r) => r.status === "approved");
+    if (error) {
+      console.error("[reviews.server] Error fetching ratings for all providers:", error);
+      return {};
     }
+    approvedReviews = (data ?? []) as unknown as { provider_id: string; rating: number }[];
   } catch (e) {
-    approvedReviews = ensureStore().filter((r) => r.status === "approved");
+    console.error("[reviews.server] Exception fetching ratings for all providers:", e);
+    return {};
   }
 
   const map: Record<string, { sum: number; count: number }> = {};
@@ -196,21 +149,20 @@ export async function getAllRatingSummaries(): Promise<Record<string, ProviderRa
 export async function adminGetReviews(status?: "pending" | "approved" | "rejected" | "all"): Promise<ReviewRecord[]> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    let q = supabaseAdmin.from("reviews" as never).select("*" as never).order("created_at" as never, { ascending: false } as never);
+    let q = supabaseAdmin.from("reviews").select("*").order("created_at", { ascending: false });
     if (status && status !== "all") {
-      q = q.eq("status" as never, status as never);
+      q = q.eq("status", status);
     }
     const { data, error } = await q;
-    if (!error && Array.isArray(data)) {
-      return data as unknown as ReviewRecord[];
+    if (error) {
+      console.error("[reviews.server] Error in adminGetReviews:", error);
+      return [];
     }
+    return (data ?? []) as unknown as ReviewRecord[];
   } catch (e) {
-    // Fallback
+    console.error("[reviews.server] Exception in adminGetReviews:", e);
+    return [];
   }
-
-  const store = ensureStore();
-  if (!status || status === "all") return store;
-  return store.filter((r) => r.status === status);
 }
 
 /**
@@ -221,42 +173,33 @@ export async function adminModerateReview(
   action: "approve" | "reject" | "delete",
   adminId?: string
 ): Promise<{ ok: boolean }> {
-  // 1. Try Supabase
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     if (action === "delete") {
-      const { error } = await supabaseAdmin.from("reviews" as never).delete().eq("id" as never, reviewId as never);
-      if (!error) return { ok: true };
+      const { error } = await supabaseAdmin.from("reviews").delete().eq("id", reviewId);
+      if (error) {
+        console.error("[reviews.server] Error deleting review:", error);
+        return { ok: false };
+      }
+      return { ok: true };
     } else {
       const newStatus = action === "approve" ? "approved" : "rejected";
       const { error } = await supabaseAdmin
-        .from("reviews" as never)
+        .from("reviews")
         .update({
           status: newStatus,
           reviewed_at: new Date().toISOString(),
           reviewed_by: adminId || null,
-        } as never)
-        .eq("id" as never, reviewId as never);
-      if (!error) return { ok: true };
+        })
+        .eq("id", reviewId);
+      if (error) {
+        console.error("[reviews.server] Error moderating review:", error);
+        return { ok: false };
+      }
+      return { ok: true };
     }
   } catch (e) {
-    // Fallback
+    console.error("[reviews.server] Exception in adminModerateReview:", e);
+    return { ok: false };
   }
-
-  // 2. Fallback to store
-  const store = ensureStore();
-  const idx = store.findIndex((r) => r.id === reviewId);
-  if (idx === -1) return { ok: false };
-
-  if (action === "delete") {
-    store.splice(idx, 1);
-  } else {
-    const target = store[idx];
-    if (!target) return { ok: false };
-    target.status = action === "approve" ? "approved" : "rejected";
-    target.reviewed_at = new Date().toISOString();
-    target.reviewed_by = adminId || null;
-  }
-  saveStore(store);
-  return { ok: true };
 }

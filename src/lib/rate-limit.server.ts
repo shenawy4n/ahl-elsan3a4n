@@ -17,10 +17,14 @@ export async function checkRateLimit(ip: string, formType: RateLimitedForm): Pro
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin.rpc("check_rate_limit" as never, { _ip: ip, _form_type: formType } as never);
-    if (!error && typeof data === "boolean") return data;
+    if (error) {
+      console.error("[rate-limit.server] check_rate_limit error:", error);
+      return false;
+    }
+    return data === true;
   } catch (e) {
-    // If DB check fails, allow in dev/fallback
+    console.error("[rate-limit.server] check_rate_limit exception:", e);
+    return false;
   }
-  return true;
 }
 
