@@ -3,23 +3,69 @@ import { useQuery } from "@tanstack/react-query";
 import { Star, MapPin, BadgeCheck, Award, Zap, Building2 } from "lucide-react";
 import { isPremiumActive, type PublicProvider as ProviderWithRefs } from "@/lib/directory";
 import { ContactButtons } from "@/components/ContactButtons";
-import { getProviderRatingSummary } from "@/lib/reviews.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { parseWorkingHours, getOpenStatus } from "@/lib/working-hours";
 
-export function ProviderRatingBadge({ providerId }: { providerId: string }) {
-  const { data } = useQuery({
-    queryKey: ["rating-summary", providerId],
-    queryFn: () => getProviderRatingSummary({ data: { providerId } }),
-    staleTime: 60_000,
+export const allRatingSummariesQuery = {
+  queryKey: ["all-rating-summaries"],
+  staleTime: 1000 * 60 * 5, // 5 minutes cache
+  queryFn: async (): Promise<Record<string, { average: number; count: number }>> => {
+    try {
+      const { data, error } = await supabase
+        .from("reviews")
+        .select("provider_id, rating")
+        .eq("status", "approved");
+
+      if (error || !data) return {};
+
+      const map: Record<string, { sum: number; count: number }> = {};
+      for (const r of data as { provider_id: string; rating: number }[]) {
+        if (!r.provider_id) continue;
+        const entry = map[r.provider_id] ?? { sum: 0, count: 0 };
+        entry.sum += r.rating;
+        entry.count += 1;
+        map[r.provider_id] = entry;
+      }
+
+      const result: Record<string, { average: number; count: number }> = {};
+      for (const [id, stats] of Object.entries(map)) {
+        result[id] = {
+          count: stats.count,
+          average: Math.round((stats.sum / stats.count) * 10) / 10,
+        };
+      }
+      return result;
+    } catch {
+      return {};
+    }
+  },
+};
+
+export function ProviderRatingBadge({
+  providerId,
+  summary,
+}: {
+  providerId: string;
+  summary?: { average: number; count: number };
+}) {
+  const isValid = Boolean(
+    providerId &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(providerId)
+  );
+
+  const { data: allRatings } = useQuery({
+    ...allRatingSummariesQuery,
+    enabled: !summary && isValid,
   });
 
-  if (!data || data.count === 0) return null;
+  const rating = summary ?? (providerId && allRatings ? allRatings[providerId] : undefined);
+  if (!rating || rating.count === 0) return null;
 
   return (
     <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-xs font-extrabold text-foreground" dir="ltr">
       <Star className="size-3.5 fill-amber-400 text-amber-400 inline" />
-      <span>{data.average.toFixed(1)}</span>
-      <span className="text-[11px] font-medium text-muted-foreground">({data.count})</span>
+      <span>{rating.average.toFixed(1)}</span>
+      <span className="text-[11px] font-medium text-muted-foreground">({rating.count})</span>
     </span>
   );
 }

@@ -1,9 +1,9 @@
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Eye, EyeOff, Star, BadgeCheck, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, Star, BadgeCheck, AlertTriangle, ExternalLink, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { isPremiumActive, settingsQuery, type Area, type Category, type ExperienceOption, type ProviderWithRefs } from "@/lib/directory";
+import { isPremiumActive, settingsQuery, type Area, type Category, type ExperienceOption, type ProviderWithRefs, normalizeEgPhone } from "@/lib/directory";
 import { input, btnGhost, useAll, isFlagged } from "./shared";
 import { WorkingHoursEditor } from "./WorkingHoursEditor";
 import { ProviderPhotoUploader } from "./ProviderPhotoUploader";
@@ -67,7 +67,7 @@ export function Providers({ editId, startNew, onClearEdit }: { editId?: string |
     refresh();
   }
   async function remove(ids: string[]) {
-    if (!ids.length || !confirm(`حذف ${ids.length} صنايعي نهائياً؟`)) return;
+    if (!ids.length || !confirm(`حذف ${ids.length} عامل نهائياً؟`)) return;
     const { error } = await supabase.from("providers").delete().in("id", ids);
     if (error) { toast.error(error.message); return; }
     setSel(new Set());
@@ -82,7 +82,7 @@ export function Providers({ editId, startNew, onClearEdit }: { editId?: string |
   const ids = [...sel];
   return (
     <div className="grid gap-3">
-      <button onClick={() => setForm({ ...empty, status: settings.data?.["default_provider_status"] || "active" })} className="flex items-center justify-center gap-2 rounded-xl bg-primary py-3 font-extrabold text-primary-foreground"><Plus className="size-5" /> إضافة صنايعي</button>
+      <button onClick={() => setForm({ ...empty, status: settings.data?.["default_provider_status"] || "active" })} className="flex items-center justify-center gap-2 rounded-xl bg-primary py-3 font-extrabold text-primary-foreground shadow-xs hover:bg-primary/90 transition-all"><Plus className="size-5" /> إضافة عامل جديد</button>
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالاسم أو رقم التليفون" className={input} />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <select value={cat} onChange={(e) => setCat(e.target.value)} className={input}><option value="">كل الأقسام</option>{(categories.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
@@ -127,11 +127,21 @@ export function Providers({ editId, startNew, onClearEdit }: { editId?: string |
             <p className="truncate text-sm text-muted-foreground">{p.categories?.name ?? "—"} · {p.areas?.name ?? "—"} · <span dir="ltr">{p.phone}</span>{p.experience_options ? ` · ${p.experience_options.label}` : ""}</p>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-0.5">
-            <button aria-label="تعديل" title="تعديل" onClick={() => setForm(toForm(p))} className="rounded-lg p-2 hover:bg-secondary"><Pencil className="size-5" /></button>
-            <button aria-label="توثيق" title={p.is_verified ? "إلغاء التوثيق" : "توثيق"} onClick={() => patch([p.id], { is_verified: !p.is_verified })} className={`rounded-lg p-2 hover:bg-secondary ${p.is_verified ? "text-primary" : "text-muted-foreground"}`}><BadgeCheck className="size-5" /></button>
-            <button aria-label="تمييز" title={p.is_premium ? "إلغاء التمييز" : "تمييز"} onClick={() => patch([p.id], p.is_premium ? { is_premium: false, premium_expires_at: null } : { is_premium: true })} className={`rounded-lg p-2 hover:bg-secondary ${p.is_premium ? "text-premium" : "text-muted-foreground"}`}><Star className="size-5" /></button>
-            <button aria-label="إخفاء/إظهار" title="إخفاء/إظهار" onClick={() => patch([p.id], { status: p.status === "active" ? "hidden" : "active" })} className="rounded-lg p-2 hover:bg-secondary">{p.status === "active" ? <EyeOff className="size-5" /> : <Eye className="size-5" />}</button>
-            <button aria-label="حذف" title="حذف" onClick={() => remove([p.id])} className="rounded-lg p-2 text-destructive hover:bg-secondary"><Trash2 className="size-5" /></button>
+            <a
+              href={`/provider/${p.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="معاينة الملف"
+              title="معاينة الملف العام في نافذة جديدة"
+              className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            >
+              <ExternalLink className="size-4.5" />
+            </a>
+            <button aria-label="تعديل" title="تعديل" onClick={() => setForm(toForm(p))} className="rounded-lg p-2 text-primary hover:bg-secondary"><Pencil className="size-4.5" /></button>
+            <button aria-label="توثيق" title={p.is_verified ? "إلغاء التوثيق" : "توثيق"} onClick={() => patch([p.id], { is_verified: !p.is_verified })} className={`rounded-lg p-2 hover:bg-secondary ${p.is_verified ? "text-primary" : "text-muted-foreground"}`}><BadgeCheck className="size-4.5" /></button>
+            <button aria-label="تمييز" title={p.is_premium ? "إلغاء التمييز" : "تمييز"} onClick={() => patch([p.id], p.is_premium ? { is_premium: false, premium_expires_at: null } : { is_premium: true })} className={`rounded-lg p-2 hover:bg-secondary ${p.is_premium ? "text-premium" : "text-muted-foreground"}`}><Star className="size-4.5" /></button>
+            <button aria-label="إخفاء/إظهار" title="إخفاء/إظهار" onClick={() => patch([p.id], { status: p.status === "active" ? "hidden" : "active" })} className="rounded-lg p-2 hover:bg-secondary">{p.status === "active" ? <EyeOff className="size-4.5" /> : <Eye className="size-4.5" />}</button>
+            <button aria-label="حذف" title="حذف" onClick={() => remove([p.id])} className="rounded-lg p-2 text-destructive hover:bg-secondary"><Trash2 className="size-4.5" /></button>
           </div>
         </div>
       ))}
@@ -155,6 +165,30 @@ function ProviderForm({ form, categories, areas, experience, onDone }: { form: F
       return;
     }
 
+    const normPhone = normalizeEgPhone(f.phone);
+    if (!normPhone) {
+      toast.error("رقم الهاتف غير صحيح (يجب أن يكون رقم محمول مصري مثل 01012345678)");
+      return;
+    }
+
+    let normSecondary: string | null = null;
+    if (f.secondary_phone?.trim()) {
+      normSecondary = normalizeEgPhone(f.secondary_phone);
+      if (!normSecondary) {
+        toast.error("الرقم الإضافي غير صحيح (يجب أن يكون رقم محمول مصري مثل 01012345678)");
+        return;
+      }
+    }
+
+    let normWhatsapp: string | null = null;
+    if (f.whatsapp?.trim()) {
+      normWhatsapp = normalizeEgPhone(f.whatsapp);
+      if (!normWhatsapp) {
+        toast.error("رقم الواتساب غير صحيح (يجب أن يكون رقم محمول مصري مثل 01012345678)");
+        return;
+      }
+    }
+
     // Validate photo before proceeding if a file was selected
     if (photoFile) {
       const validation = validatePhotoFile(photoFile);
@@ -174,9 +208,9 @@ function ProviderForm({ form, categories, areas, experience, onDone }: { form: F
           name: f.name.trim(),
           category_id: f.category_id,
           area_id: f.area_id,
-          phone: f.phone.trim(),
-          secondary_phone: n(f.secondary_phone),
-          whatsapp: n(f.whatsapp),
+          phone: normPhone,
+          secondary_phone: normSecondary,
+          whatsapp: normWhatsapp,
           description: n(f.description),
           services: n(f.services),
           price_description: n(f.price_description),
@@ -240,9 +274,9 @@ function ProviderForm({ form, categories, areas, experience, onDone }: { form: F
           name: f.name.trim(),
           category_id: f.category_id,
           area_id: f.area_id,
-          phone: f.phone.trim(),
-          secondary_phone: n(f.secondary_phone),
-          whatsapp: n(f.whatsapp),
+          phone: normPhone,
+          secondary_phone: normSecondary,
+          whatsapp: normWhatsapp,
           description: n(f.description),
           services: n(f.services),
           price_description: n(f.price_description),
@@ -278,8 +312,48 @@ function ProviderForm({ form, categories, areas, experience, onDone }: { form: F
   );
 
   return (
-    <form onSubmit={save} className="surface grid gap-3 p-5">
-      <h2 className="text-xl font-extrabold">{f.id ? "تعديل صنايعي" : "إضافة صنايعي"}</h2>
+    <form onSubmit={save} className="surface grid gap-4 p-5 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onDone}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+          >
+            <ArrowRight className="size-3.5" />
+            <span>رجوع للقائمة</span>
+          </button>
+          <h2 className="text-xl font-extrabold text-foreground">
+            {f.id ? `تعديل بيانات العامل: ${f.name || ""}` : "إضافة عامل جديد"}
+          </h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {f.id && (
+            <a
+              href={`/provider/${f.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs font-bold text-primary hover:underline px-2 py-1"
+            >
+              <span>معاينة الملف</span>
+              <ExternalLink className="size-3.5" />
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={onDone}
+            className="rounded-xl border border-border px-4 py-2 text-xs font-bold hover:bg-secondary"
+          >
+            إلغاء
+          </button>
+          <button
+            disabled={busy}
+            className="rounded-xl bg-primary px-5 py-2 text-xs font-extrabold text-primary-foreground disabled:opacity-60 shadow-sm"
+          >
+            {busy ? "جاري الحفظ..." : "حفظ التغييرات"}
+          </button>
+        </div>
+      </div>
       {field("name", "الاسم *", { required: true, maxLength: 100 })}
       <div className="grid grid-cols-2 gap-2">
         <label className="grid gap-1 text-sm font-bold">القسم *<select value={f.category_id} onChange={set("category_id")} className={input} required><option value="">اختار</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>

@@ -2,90 +2,462 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
+import {
+  ShieldCheck,
+  UserPlus,
+  Shield,
+  KeyRound,
+  Trash2,
+  Power,
+  Crown,
+  CheckCircle2,
+  XCircle,
+  X,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { addAdmin } from "@/lib/admins.functions";
-import { input, btn, btnGhost } from "./shared";
+import {
+  addAdmin,
+  updateAdminRole,
+  setAdminActiveStatus,
+  revokeAdminAccount,
+  setAdminPassword,
+} from "@/lib/admins.functions";
+import { input } from "./shared";
 
-type AdminRow = { id: string; email: string; is_owner: boolean; active: boolean; added_by_email: string | null; created_at: string };
-
-const ERR: Record<string, string> = {
-  already_admin: "الإيميل ده عنده صلاحية بالفعل.",
-  invalid_email: "الإيميل مش صحيح.",
-  not_owner: "المالك الرئيسي بس اللي يقدر يعمل كده.",
-  not_found: "مش موجود أو ماينفعش تعديله.",
+type AdminRow = {
+  id: string;
+  email: string;
+  is_owner: boolean;
+  active: boolean;
+  added_by_email: string | null;
+  created_at: string;
 };
-const msg = (m: string) => Object.entries(ERR).find(([k]) => m.includes(k))?.[1] ?? "حصلت مشكلة، جرّب تاني";
+
+const ERR_MAP: Record<string, string> = {
+  already_admin: "هذا البريد الإلكتروني لديه صلاحية مسؤول بالفعل.",
+  invalid_email: "البريد الإلكتروني المدخل غير صالح.",
+  not_owner: "هذا الإجراء متاح لمالك النظام (Owner) فقط.",
+  cannot_demote_self: "لا يمكنك سحب صفة المالك من حسابك الشخصي.",
+  cannot_suspend_owner: "لا يمكن إيقاف حساب المالك.",
+  cannot_revoke_self: "لا يمكنك سحب صلاحية حسابك الشخصي.",
+  not_found: "المسؤول غير موجود.",
+};
+
+const getErrorMsg = (code: string) =>
+  ERR_MAP[code] || Object.entries(ERR_MAP).find(([k]) => code.includes(k))?.[1] || "حدث خطأ، يرجى المحاولة لاحقاً.";
 
 export function Admins() {
   const qc = useQueryClient();
-  const add = useServerFn(addAdmin);
+  const addFn = useServerFn(addAdmin);
+  const updateRoleFn = useServerFn(updateAdminRole);
+  const setActiveFn = useServerFn(setAdminActiveStatus);
+  const revokeFn = useServerFn(revokeAdminAccount);
+  const setPassFn = useServerFn(setAdminPassword);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isOwnerRole, setIsOwnerRole] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Password reset modal state
+  const [passModalAdmin, setPassModalAdmin] = useState<AdminRow | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [passBusy, setPassBusy] = useState(false);
+
   const list = useQuery({
     queryKey: ["admin", "admins"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("admin_users" as never).select("*").order("created_at");
+      const { data, error } = await supabase
+        .from("admin_users" as never)
+        .select("*")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as AdminRow[];
     },
   });
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["admin", "admins"] }); qc.invalidateQueries({ queryKey: ["admin", "audit"] }); };
 
-  async function submit(e: React.FormEvent) {
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["admin", "admins"] });
+    qc.invalidateQueries({ queryKey: ["admin", "audit"] });
+  };
+
+  async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     const em = email.trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { toast.error(ERR["invalid_email"]); return; }
-    if (password && password.length < 8) { toast.error("كلمة السر 8 حروف على الأقل"); return; }
-    if (list.data?.some((a) => a.email === em)) { toast.error(ERR["already_admin"]); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) {
+      toast.error(ERR_MAP["invalid_email"]);
+      return;
+    }
+    if (password && password.length < 8) {
+      toast.error("كلمة المرور يجب أن تكون 8 أحرف على الأقل.");
+      return;
+    }
+    if (list.data?.some((a) => a.email === em)) {
+      toast.error(ERR_MAP["already_admin"]);
+      return;
+    }
+
     setBusy(true);
     try {
-      const r = await add({ data: { email: em, password } });
-      if (!r.ok) { toast.error(msg(r.code)); return; }
-      toast.success(r.warning ? "اتضاف، بس ماقدرناش نعمل له كلمة سر" : "تمت إضافة المسؤول");
-      setEmail(""); setPassword(""); refresh();
-    } catch { toast.error("حصلت مشكلة، جرّب تاني"); } finally { setBusy(false); }
+      const r = await addFn({
+        data: {
+          email: em,
+          password: password || undefined,
+          is_owner: isOwnerRole,
+        },
+      });
+      if (!r.ok) {
+        toast.error(getErrorMsg(r.code));
+        return;
+      }
+      toast.success(
+        isOwnerRole
+          ? "تمت إضافة المالك الجديد بنجاح"
+          : "تمت إضافة المسؤول بنجاح"
+      );
+      if (r.warning) {
+        toast.warning(r.warning);
+      }
+      setEmail("");
+      setPassword("");
+      setIsOwnerRole(false);
+      refresh();
+    } catch {
+      toast.error("حدث خطأ أثناء إضافة المسؤول");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  async function rpc(fn: string, args: Record<string, unknown>, ok: string) {
-    const { error } = await supabase.rpc(fn as never, args as never);
-    if (error) toast.error(msg(error.message)); else { toast.success(ok); refresh(); }
+  async function handleChangeRole(admin: AdminRow, newIsOwner: boolean) {
+    const roleName = newIsOwner ? "مالك للنظام (Owner)" : "مسؤول عام (Admin)";
+    if (!confirm(`هل أنت متأكد من تغيير صلاحية ${admin.email} إلى ${roleName}؟`)) return;
+
+    try {
+      const r = await updateRoleFn({ data: { id: admin.id, is_owner: newIsOwner } });
+      if (!r.ok) {
+        toast.error(getErrorMsg(r.code));
+        return;
+      }
+      toast.success(`تم تغيير دور ${admin.email} إلى ${roleName}`);
+      refresh();
+    } catch {
+      toast.error("حدث خطأ أثناء تعديل الدور");
+    }
+  }
+
+  async function handleToggleActive(admin: AdminRow) {
+    const nextState = !admin.active;
+    const actionLabel = nextState ? "تفعيل" : "إيقاف";
+    if (!confirm(`هل أنت متأكد من ${actionLabel} حساب ${admin.email}؟`)) return;
+
+    try {
+      const r = await setActiveFn({ data: { id: admin.id, active: nextState } });
+      if (!r.ok) {
+        toast.error(getErrorMsg(r.code));
+        return;
+      }
+      toast.success(`تم ${actionLabel} الحساب بنجاح`);
+      refresh();
+    } catch {
+      toast.error("حدث خطأ أثناء تحديث حالة الحساب");
+    }
+  }
+
+  async function handleRevoke(admin: AdminRow) {
+    if (!confirm(`تحذير: هل أنت متأكد من حذف وسحب صلاحية المسؤول (${admin.email}) نهائياً؟`)) {
+      return;
+    }
+
+    try {
+      const r = await revokeFn({ data: { id: admin.id } });
+      if (!r.ok) {
+        toast.error(getErrorMsg(r.code));
+        return;
+      }
+      toast.success(`تم سحب صلاحية ${admin.email} بنجاح`);
+      refresh();
+    } catch {
+      toast.error("حدث خطأ أثناء سحب الصلاحية");
+    }
+  }
+
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!passModalAdmin) return;
+    if (newPassword.length < 8) {
+      toast.error("كلمة المرور يجب أن تكون 8 أحرف على الأقل.");
+      return;
+    }
+
+    setPassBusy(true);
+    try {
+      const r = await setPassFn({
+        data: {
+          email: passModalAdmin.email,
+          password: newPassword,
+        },
+      });
+      if (!r.ok) {
+        toast.error(getErrorMsg(r.code));
+        return;
+      }
+      toast.success(`تم تعيين كلمة المرور الجديدة لـ ${passModalAdmin.email}`);
+      setPassModalAdmin(null);
+      setNewPassword("");
+      refresh();
+    } catch {
+      toast.error("حدث خطأ أثناء تغيير كلمة المرور");
+    } finally {
+      setPassBusy(false);
+    }
   }
 
   return (
-    <div className="grid gap-5">
-      <form onSubmit={submit} className="surface grid gap-3 p-4">
-        <h2 className="text-lg font-extrabold">إضافة مسؤول</h2>
-        <input type="email" dir="ltr" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="البريد الإلكتروني" className={input} />
-        <input type="text" dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="كلمة سر مبدئية (لو ماعندوش حساب)" className={input} />
-        <p className="text-xs text-muted-foreground">لو الشخص ماعندوش حساب، اكتب كلمة سر مبدئية وابعتهاله عشان يدخل بيها.</p>
-        <button disabled={busy} className={btn}>إضافة</button>
+    <div className="space-y-6">
+      {/* Add Admin Form */}
+      <form onSubmit={handleAdd} className="surface p-5 sm:p-6 space-y-4">
+        <div className="flex items-center gap-2.5 border-b border-border pb-3">
+          <div className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+            <UserPlus className="size-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-extrabold text-foreground">إضافة مسؤول جديد</h2>
+            <p className="text-xs text-muted-foreground">
+              حدد البريد الإلكتروني وكلمة المرور والدور المطلوب لمنحه صلاحيات الدخول
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <label className="grid gap-1 text-sm font-bold sm:col-span-1">
+            البريد الإلكتروني *
+            <input
+              type="email"
+              dir="ltr"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@example.com"
+              className={input}
+            />
+          </label>
+
+          <label className="grid gap-1 text-sm font-bold sm:col-span-1">
+            كلمة المرور المبدئية
+            <input
+              type="text"
+              dir="ltr"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="٨ أحرف على الأقل"
+              className={input}
+            />
+          </label>
+
+          <label className="grid gap-1 text-sm font-bold sm:col-span-1">
+            الدور والصلاحية *
+            <select
+              value={isOwnerRole ? "owner" : "admin"}
+              onChange={(e) => setIsOwnerRole(e.target.value === "owner")}
+              className={input}
+            >
+              <option value="admin">مسؤول عام (Admin)</option>
+              <option value="owner">مالك النظام (Owner)</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <p className="text-xs text-muted-foreground">
+            • <strong className="text-foreground">المسؤول:</strong> يدير العمال والطلبات والتقييمات والأقسام. <br />
+            • <strong className="text-primary font-bold">المالك:</strong> يتمتع بكامل الصلاحيات بما فيها إدارة المسؤولين وتصدير البيانات.
+          </p>
+          <button
+            disabled={busy}
+            className="rounded-xl bg-primary px-5 py-2.5 text-xs font-extrabold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 shadow-xs transition-all"
+          >
+            {busy ? "جاري الإضافة..." : "إضافة وحفظ الصلاحية"}
+          </button>
+        </div>
       </form>
 
-      <section className="surface overflow-x-auto p-2">
-        <h2 className="p-2 text-lg font-extrabold">المسؤولين</h2>
-        <table className="w-full text-sm">
-          <thead className="text-muted-foreground"><tr><th className="p-2 text-start">البريد</th><th className="p-2 text-start">الحالة</th><th className="p-2 text-start">تاريخ الإضافة</th><th className="p-2 text-start">أضافه</th><th className="p-2" /></tr></thead>
-          <tbody>
-            {(list.data ?? []).map((a) => (
-              <tr key={a.id} className="border-t border-border">
-                <td className="p-2 font-bold" dir="ltr">{a.email}</td>
-                <td className="p-2">{a.is_owner ? <span className="font-extrabold text-primary">المالك الرئيسي</span> : a.active ? "نشط" : "موقوف"}</td>
-                <td className="p-2">{new Date(a.created_at).toLocaleDateString("ar-EG")}</td>
-                <td className="p-2" dir="ltr">{a.added_by_email ?? "—"}</td>
-                <td className="p-2">
-                  {a.is_owner ? null : (
-                    <div className="flex gap-1.5">
-                      <button onClick={() => rpc("admin_set_active", { _id: a.id, _active: !a.active }, a.active ? "تم الإيقاف" : "تم التفعيل")} className={btnGhost}>{a.active ? "إيقاف" : "تفعيل"}</button>
-                      <button onClick={() => { if (confirm(`سحب صلاحية ${a.email}؟`)) void rpc("admin_revoke", { _id: a.id }, "تم سحب الصلاحية"); }} className={`${btnGhost} text-destructive`}>سحب الصلاحية</button>
-                    </div>
-                  )}
-                </td>
-              </tr>
+      {/* Admins List Section */}
+      <div className="surface p-5 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <h2 className="text-lg font-extrabold text-foreground flex items-center gap-2">
+            <ShieldCheck className="size-5 text-primary" />
+            المسؤولون الحاليون ({list.data?.length ?? 0})
+          </h2>
+          <span className="text-xs text-muted-foreground">يمكنك تعديل الدور أو إيقاف أو حذف الحسابات</span>
+        </div>
+
+        {list.isLoading ? (
+          <p className="p-6 text-center text-sm text-muted-foreground">جاري تحميل قائمة المسؤولين...</p>
+        ) : !list.data?.length ? (
+          <p className="p-6 text-center text-sm text-muted-foreground">لا يوجد مسؤولين مسجلين</p>
+        ) : (
+          <div className="divide-y divide-border rounded-xl border border-border overflow-hidden">
+            {list.data.map((admin) => (
+              <div
+                key={admin.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-card hover:bg-secondary/40 transition-colors"
+              >
+                {/* Admin info */}
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-extrabold text-foreground truncate" dir="ltr">
+                      {admin.email}
+                    </p>
+                    {admin.is_owner ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[11px] font-black text-primary">
+                        <Crown className="size-3" /> مالك (Owner)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-secondary border border-border px-2.5 py-0.5 text-[11px] font-bold text-foreground">
+                        <Shield className="size-3" /> مسؤول (Admin)
+                      </span>
+                    )}
+                    {admin.active ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="size-2.5" /> نشط
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
+                        <XCircle className="size-2.5" /> موقوف
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    أضيف بتاريخ: {new Date(admin.created_at).toLocaleDateString("ar-EG")}
+                    {admin.added_by_email && ` · بواسطة: ${admin.added_by_email}`}
+                  </p>
+                </div>
+
+                {/* Role and Action Controls */}
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {/* Toggle Role Button */}
+                  <button
+                    onClick={() => handleChangeRole(admin, !admin.is_owner)}
+                    title={admin.is_owner ? "تحويل إلى مسؤول عادي" : "ترقية إلى مالك"}
+                    className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold hover:bg-secondary transition-colors"
+                  >
+                    {admin.is_owner ? (
+                      <>
+                        <Shield className="size-3.5 text-muted-foreground" />
+                        <span>تحويل لمسؤول</span>
+                      </>
+                    ) : (
+                      <>
+                        <Crown className="size-3.5 text-amber-500" />
+                        <span>ترقية لمالك</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Reset Password Button */}
+                  <button
+                    onClick={() => {
+                      setPassModalAdmin(admin);
+                      setNewPassword("");
+                    }}
+                    title="تغيير كلمة المرور للمسؤول"
+                    className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold hover:bg-secondary text-primary transition-colors"
+                  >
+                    <KeyRound className="size-3.5" />
+                    <span>كلمة السر</span>
+                  </button>
+
+                  {/* Toggle Active/Inactive */}
+                  <button
+                    onClick={() => handleToggleActive(admin)}
+                    title={admin.active ? "إيقاف الحساب" : "تفعيل الحساب"}
+                    className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors ${
+                      admin.active
+                        ? "border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+                        : "border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+                    }`}
+                  >
+                    <Power className="size-3.5" />
+                    <span>{admin.active ? "إيقاف" : "تفعيل"}</span>
+                  </button>
+
+                  {/* Revoke Admin Button */}
+                  <button
+                    onClick={() => handleRevoke(admin)}
+                    title="سحب الصلاحية وحذف الحساب"
+                    className="inline-flex items-center gap-1 rounded-lg border border-destructive/20 text-destructive hover:bg-destructive/10 px-2 py-1.5 text-xs font-bold transition-colors"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
-      </section>
+          </div>
+        )}
+      </div>
+
+      {/* Modal: Set New Password For Admin */}
+      {passModalAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <form
+            onSubmit={handleSetPassword}
+            className="relative w-full max-w-sm rounded-2xl bg-card border border-border p-5 shadow-2xl text-foreground space-y-4"
+          >
+            <button
+              type="button"
+              onClick={() => setPassModalAdmin(null)}
+              className="absolute left-4 top-4 rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
+                <KeyRound className="size-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold">تعيين كلمة سر جديدة</h3>
+                <p className="text-xs text-muted-foreground truncate" dir="ltr">
+                  {passModalAdmin.email}
+                </p>
+              </div>
+            </div>
+
+            <label className="grid gap-1 text-sm font-bold">
+              كلمة المرور الجديدة (٨ أحرف على الأقل) *
+              <input
+                type="text"
+                dir="ltr"
+                required
+                minLength={8}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="اكتب كلمة السر الجديدة..."
+                className={input}
+                autoFocus
+              />
+            </label>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                disabled={passBusy}
+                type="submit"
+                className="flex-1 rounded-xl bg-primary py-2.5 text-xs font-extrabold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all shadow-xs"
+              >
+                {passBusy ? "جاري الحفظ..." : "حفظ كلمة السر"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPassModalAdmin(null)}
+                className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold hover:bg-secondary"
+              >
+                إلغاء
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

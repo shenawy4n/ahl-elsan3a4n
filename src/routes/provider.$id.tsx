@@ -64,7 +64,7 @@ function ProviderPage() {
           <>
             <section className="surface p-5">
               {p.photo_url ? (
-                <img src={p.photo_url} alt={p.name} className="mb-4 aspect-video w-full rounded-xl object-cover" />
+                <img src={p.photo_url} alt={p.name} loading="lazy" decoding="async" className="mb-4 aspect-video w-full rounded-xl object-cover" />
               ) : null}
               <div className="flex items-start justify-between gap-2">
                 <h1 className="text-2xl font-extrabold">{p.name}</h1>

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, useMemo } from "react";
 import { track } from "@/lib/track";
 import { ArrowRight, Search as SearchIcon, Loader2, X } from "lucide-react";
-import { areasQuery, categoriesQuery, experienceQuery, providersQuery } from "@/lib/directory";
+import { areasQuery, categoriesQuery, experienceQuery, providersQuery, getCategoryUnit } from "@/lib/directory";
 import { ProviderCard } from "@/components/ProviderCard";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -83,7 +83,7 @@ function CategoryPage() {
 
         <h1 className="text-2xl font-extrabold">{category?.name ?? "الخدمة"}</h1>
         <p className="mb-4 text-sm text-muted-foreground">
-          {results.data ? `${filteredProviders.length} صنايعي معروض` : "جاري التحميل…"}
+          {results.data ? `${filteredProviders.length} ${getCategoryUnit(category?.name ?? "", category?.unit_title)} معروض` : "جاري التحميل…"}
         </p>
 
         <div className="surface mb-3 flex items-center gap-3 px-4 py-3.5">

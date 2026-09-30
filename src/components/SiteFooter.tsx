@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ShieldCheck, Info, Shield, FileText } from "lucide-react";
+import { ShieldCheck, Info, Shield, FileText, PhoneCall } from "lucide-react";
 
 export function SiteFooter() {
   return (
@@ -8,6 +8,10 @@ export function SiteFooter() {
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 font-bold text-xs sm:text-sm">
           <Link to="/" className="hover:text-foreground transition-colors">
             الرئيسية
+          </Link>
+          <span className="text-border hidden sm:inline">•</span>
+          <Link to="/contact" className="hover:text-foreground transition-colors inline-flex items-center gap-1.5">
+            <PhoneCall className="size-3.5" /> تواصل معنا
           </Link>
           <span className="text-border hidden sm:inline">•</span>
           <Link to="/about" className="hover:text-foreground transition-colors inline-flex items-center gap-1.5">

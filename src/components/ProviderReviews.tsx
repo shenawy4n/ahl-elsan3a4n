@@ -21,22 +21,30 @@ export function ProviderReviews({ providerId, providerName }: ProviderReviewsPro
   const [busy, setBusy] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
 
+  const isValidId = Boolean(providerId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(providerId));
+
   // 1. Fetch approved reviews only
   const { data: reviews = [], isLoading: isLoadingReviews } = useQuery({
     queryKey: ["reviews", providerId],
     queryFn: async () => {
+      if (!isValidId) return [];
       const res = await getProviderReviews({ data: { providerId } });
       return res;
     },
+    staleTime: 1000 * 60 * 3, // 3 minutes cache
+    enabled: isValidId,
   });
 
   // 2. Fetch approved rating summary (average & count)
   const { data: summary = { average: 0, count: 0 }, isLoading: isLoadingSummary } = useQuery({
     queryKey: ["rating-summary", providerId],
     queryFn: async () => {
+      if (!isValidId) return { average: 0, count: 0 };
       const res = await getProviderRatingSummary({ data: { providerId } });
       return res;
     },
+    staleTime: 1000 * 60 * 3, // 3 minutes cache
+    enabled: isValidId,
   });
 
   async function handleSubmitReview(e: React.FormEvent) {

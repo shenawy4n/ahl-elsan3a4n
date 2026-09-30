@@ -1,19 +1,29 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { LogOut } from "lucide-react";
+import {
+  LogOut,
+  LayoutDashboard,
+  Briefcase,
+  Inbox,
+  Star,
+  BarChart3,
+  Settings as SettingsIcon,
+  ExternalLink,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Admins } from "@/components/admin/Admins";
-import { Providers } from "@/components/admin/Providers";
-import { Categories, Areas } from "@/components/admin/Lists";
-import { Overview, Analytics, Reports, Suggestions, AuditLog, Settings, Applications } from "@/components/admin/Insights";
+import { ServicesHub, type ServicesSubTab } from "@/components/admin/ServicesHub";
+import { Overview, Analytics } from "@/components/admin/Insights";
 import { AdminReviews } from "@/components/admin/Reviews";
+import { RequestsHub, type RequestsSubTab } from "@/components/admin/RequestsHub";
+import { SettingsHub, type SettingsSubTab } from "@/components/admin/SettingsHub";
+import { adminListReviews } from "@/lib/reviews.functions";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
     meta: [
       { title: "لوحة التحكم — أهل الصنعة" },
-      { name: "description", content: "إدارة الصنايعية والأقسام والقرى." },
+      { name: "description", content: "إدارة العمال والخدمات والأقسام والقرى والطلبات." },
       { property: "og:title", content: "لوحة التحكم — أهل الصنعة" },
       { property: "og:description", content: "إدارة أهل الصنعة." },
       { name: "robots", content: "noindex" },
@@ -22,9 +32,17 @@ export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
 });
 
+type Tab =
+  | "home"
+  | "services"
+  | "requests"
+  | "reviews"
+  | "analytics"
+  | "settings";
 
 function AdminPage() {
   const navigate = useNavigate();
+
   const role = useQuery({
     queryKey: ["admin-level"],
     queryFn: async () => {
@@ -33,10 +51,61 @@ function AdminPage() {
       return (data as unknown as "owner" | "admin" | null) ?? null;
     },
   });
+
   const [tab, setTab] = useState<Tab>("home");
+  const [servicesSubTab, setServicesSubTab] = useState<ServicesSubTab>("workers");
+  const [requestsSubTab, setRequestsSubTab] = useState<RequestsSubTab>("applications");
+  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>("platform");
   const [editId, setEditId] = useState<string | null>(null);
   const [newProvider, setNewProvider] = useState(false);
   const [catPrefill, setCatPrefill] = useState<string | null>(null);
+
+  // Live badge queries
+  const appsCountQuery = useQuery({
+    queryKey: ["admin", "counts", "applications"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("provider_applications")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      return count ?? 0;
+    },
+    staleTime: 30_000,
+  });
+
+  const reportsCountQuery = useQuery({
+    queryKey: ["admin", "counts", "reports"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("reports")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["new", "reviewing"]);
+      return count ?? 0;
+    },
+    staleTime: 30_000,
+  });
+
+  const suggestionsCountQuery = useQuery({
+    queryKey: ["admin", "counts", "suggestions"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("service_suggestions")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "new");
+      return count ?? 0;
+    },
+    staleTime: 30_000,
+  });
+
+  const reviewsQuery = useQuery({
+    queryKey: ["admin", "reviews"],
+    queryFn: () => adminListReviews({ data: { status: "all" } }),
+    staleTime: 30_000,
+  });
+
+  const totalPendingRequests =
+    (appsCountQuery.data ?? 0) + (reportsCountQuery.data ?? 0) + (suggestionsCountQuery.data ?? 0);
+  const pendingReviewsCount = (reviewsQuery.data ?? []).filter((r) => r.status === "pending").length;
 
   async function logout() {
     await supabase.auth.signOut();
@@ -44,65 +113,199 @@ function AdminPage() {
   }
 
   if (role.isLoading) return <p className="p-8 text-center">جاري التحقق...</p>;
-  if (!role.data)
+  if (!role.data) {
     return (
       <div className="mx-auto max-w-md p-8 text-center">
         <p className="text-lg font-bold">ليس لديك صلاحية الدخول إلى لوحة الإدارة</p>
-        <button onClick={logout} className="mt-4 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground">تسجيل خروج</button>
+        <button
+          onClick={logout}
+          className="mt-4 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground"
+        >
+          تسجيل خروج
+        </button>
       </div>
     );
-  const isOwner = role.data === "owner";
-  const tabs = isOwner ? [...TABS, ["admins", "إدارة المسؤولين"] as const] : TABS;
+  }
 
-  const go = (t: string, action?: string) => {
-    setTab(t as Tab);
+  const isOwner = role.data === "owner";
+
+  const go = (targetTab: string, action?: string) => {
     setEditId(null);
-    setNewProvider(t === "providers" && action === "new");
-    if (t === "categories" && action === "new") setCatPrefill("");
+    setNewProvider(false);
+
+    // Mappings for consolidated tabs
+    if (targetTab === "providers" || targetTab === "workers") {
+      setTab("services");
+      setServicesSubTab("workers");
+      if (action === "new") setNewProvider(true);
+      return;
+    }
+    if (targetTab === "categories") {
+      setTab("services");
+      setServicesSubTab("categories");
+      if (action === "new") setCatPrefill("");
+      return;
+    }
+    if (targetTab === "areas") {
+      setTab("services");
+      setServicesSubTab("areas");
+      return;
+    }
+    if (targetTab === "services") {
+      setTab("services");
+      setServicesSubTab("workers");
+      return;
+    }
+
+    if (targetTab === "applications" || targetTab === "reports" || targetTab === "suggestions" || targetTab === "messages") {
+      setTab("requests");
+      setRequestsSubTab(targetTab as RequestsSubTab);
+      return;
+    }
+
+    if (targetTab === "account" || targetTab === "password") {
+      setTab("settings");
+      setSettingsSubTab("account");
+      return;
+    }
+    if (targetTab === "export" || targetTab === "audit" || targetTab === "admins") {
+      setTab("settings");
+      setSettingsSubTab(targetTab as SettingsSubTab);
+      return;
+    }
+    if (targetTab === "settings") {
+      setTab("settings");
+      setSettingsSubTab("platform");
+      return;
+    }
+
+    setTab(targetTab as Tab);
   };
+
+  const navItems = [
+    { id: "home" as const, label: "الرئيسية", icon: LayoutDashboard },
+    { id: "services" as const, label: "الخدمات", icon: Briefcase },
+    {
+      id: "requests" as const,
+      label: "الطلبات والوارد",
+      icon: Inbox,
+      badge: totalPendingRequests,
+    },
+    {
+      id: "reviews" as const,
+      label: "التقييمات",
+      icon: Star,
+      badge: pendingReviewsCount,
+    },
+    { id: "analytics" as const, label: "الإحصائيات", icon: BarChart3 },
+    { id: "settings" as const, label: "الإعدادات والنظام", icon: SettingsIcon },
+  ];
 
   return (
     <div className="min-h-screen bg-background pb-12">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <Link to="/" className="text-lg font-extrabold">لوحة التحكم · أهل الصنعة</Link>
-          <button onClick={logout} className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground"><LogOut className="size-4" /> خروج</button>
+      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur shadow-xs">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Link to="/" className="text-lg font-extrabold flex items-center gap-2 hover:text-primary transition-colors">
+              <span>لوحة التحكم</span>
+              <span className="text-muted-foreground text-xs font-normal">· أهل الصنعة</span>
+            </Link>
+            <span className="hidden sm:inline-flex text-[11px] font-bold px-2 py-0.5 rounded-md bg-secondary text-foreground">
+              {isOwner ? "المالك (Owner)" : "مسؤول (Admin)"}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <span>معاينة الموقع</span>
+              <ExternalLink className="size-3.5" />
+            </Link>
+            <button
+              onClick={logout}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold text-muted-foreground hover:bg-secondary hover:text-destructive transition-colors"
+            >
+              <LogOut className="size-3.5" /> خروج
+            </button>
+          </div>
         </div>
-        <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 pb-2">
-          {tabs.map(([k, l]) => (
-            <button key={k} onClick={() => go(k)} className={`shrink-0 rounded-lg px-3 py-2 text-sm font-bold ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{l}</button>
-          ))}
+
+        {/* Clean top navigation with 6 consolidated tabs */}
+        <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 pb-2">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = tab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setTab(item.id)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold transition-all ${
+                  active
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                }`}
+              >
+                <Icon className="size-4 shrink-0" />
+                <span>{item.label}</span>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.2 text-[10px] font-extrabold ${
+                      active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary text-primary-foreground"
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
       </header>
-      <main className="mx-auto max-w-5xl px-4 pt-5">
+
+      <main className="mx-auto max-w-6xl px-4 pt-5">
         {tab === "home" && <Overview go={go} />}
-        {tab === "providers" && <Providers key={`${editId}-${newProvider}`} editId={editId} startNew={newProvider} onClearEdit={() => { setEditId(null); setNewProvider(false); }} />}
-        {tab === "categories" && <Categories prefill={catPrefill} onPrefillUsed={() => setCatPrefill(null)} />}
-        {tab === "areas" && <Areas />}
-        {tab === "analytics" && <Analytics />}
-        {tab === "reports" && <Reports onEdit={(id) => { setEditId(id); setNewProvider(false); setTab("providers"); }} />}
-        {tab === "suggestions" && <Suggestions onCreate={(n) => { setCatPrefill(n); setTab("categories"); }} />}
-        {tab === "applications" && <Applications />}
+
+        {tab === "services" && (
+          <ServicesHub
+            initialSubTab={servicesSubTab}
+            editId={editId}
+            startNew={newProvider}
+            onClearEdit={() => {
+              setEditId(null);
+              setNewProvider(false);
+            }}
+            catPrefill={catPrefill}
+            onPrefillUsed={() => setCatPrefill(null)}
+          />
+        )}
+
+        {tab === "requests" && (
+          <RequestsHub
+            initialSubTab={requestsSubTab}
+            onEditProvider={(id) => {
+              setEditId(id);
+              setNewProvider(false);
+              setTab("services");
+              setServicesSubTab("workers");
+            }}
+            onCreateCategory={(n) => {
+              setCatPrefill(n);
+              setTab("services");
+              setServicesSubTab("categories");
+            }}
+          />
+        )}
+
         {tab === "reviews" && <AdminReviews />}
-        {tab === "audit" && <AuditLog />}
-        {tab === "settings" && <Settings />}
-        {tab === "admins" && isOwner && <Admins />}
+
+        {tab === "analytics" && <Analytics />}
+
+        {tab === "settings" && (
+          <SettingsHub isOwner={isOwner} initialSubTab={settingsSubTab} />
+        )}
       </main>
     </div>
   );
 }
-
-const TABS = [
-  ["home", "الرئيسية"],
-  ["providers", "الصنايعية"],
-  ["reviews", "التقييمات"],
-  ["categories", "الأقسام"],
-  ["areas", "المناطق"],
-  ["analytics", "الإحصائيات"],
-  ["reports", "البلاغات"],
-  ["applications", "طلبات التسجيل"],
-  ["suggestions", "اقتراحات الخدمات"],
-  ["audit", "سجل التغييرات"],
-  ["settings", "الإعدادات / الحساب"],
-] as const;
-type Tab = (typeof TABS)[number][0] | "admins";

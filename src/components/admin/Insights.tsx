@@ -1,8 +1,8 @@
 import { ChangePassword } from "./ChangePassword";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { toast } from "sonner";
-import { Phone, MessageCircle, Eye, Search } from "lucide-react";
+import { Phone, PhoneCall, MessageCircle, Eye, Search, Upload, Image as ImageIcon, Trash2, Loader2, FileText, Info, Shield, Share2, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { settingsQuery } from "@/lib/directory";
 import { ExperienceManager } from "./Lists";
@@ -37,23 +37,113 @@ export function Overview({ go }: { go: (tab: string, action?: string) => void })
     queryKey: ["admin", "reviews"],
     queryFn: () => adminListReviews({ data: { status: "all" } }),
   });
+
+  const appsCountQuery = useQuery({
+    queryKey: ["admin", "counts", "applications"],
+    queryFn: async () => {
+      const { count } = await supabase.from("provider_applications").select("id", { count: "exact", head: true }).eq("status", "pending");
+      return count ?? 0;
+    },
+  });
+
+  const reportsCountQuery = useQuery({
+    queryKey: ["admin", "counts", "reports"],
+    queryFn: async () => {
+      const { count } = await supabase.from("reports").select("id", { count: "exact", head: true }).in("status", ["new", "reviewing"]);
+      return count ?? 0;
+    },
+  });
+
+  const suggestionsCountQuery = useQuery({
+    queryKey: ["admin", "counts", "suggestions"],
+    queryFn: async () => {
+      const { count } = await supabase.from("service_suggestions").select("id", { count: "exact", head: true }).eq("status", "new");
+      return count ?? 0;
+    },
+  });
+
   const p = providers.data ?? [];
   const e = ev.data ?? [];
   const rList = rev.data ?? [];
   const pendingReviewsCount = rList.filter((r) => r.status === "pending").length;
   const approvedReviewsCount = rList.filter((r) => r.status === "approved").length;
+  const appsCount = appsCountQuery.data ?? 0;
+  const reportsCount = reportsCountQuery.data ?? 0;
+  const suggestionsCount = suggestionsCountQuery.data ?? 0;
+  const totalPendingRequests = appsCount + reportsCount + suggestionsCount;
+
   const c = (t: string) => e.filter((x) => x.event_type === t).length;
   return (
     <div className="grid gap-5">
-      <div className="grid grid-cols-4 gap-2">
-        <button onClick={() => go("providers", "new")} className={btn}>+ صنايعي</button>
-        <button onClick={() => go("categories", "new")} className={btn}>+ قسم</button>
-        <button onClick={() => go("areas")} className={btn}>+ منطقة</button>
-        <button onClick={() => go("reviews")} className={btnGhost}>التقييمات {pendingReviewsCount > 0 ? `(${pendingReviewsCount})` : ""}</button>
+      {/* Quick Action Buttons */}
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => go("providers", "new")} className={btn}>+ إضافة صنايعي</button>
+        <button onClick={() => go("categories", "new")} className={btn}>+ إضافة قسم</button>
+        <button onClick={() => go("areas")} className={btn}>+ إضافة منطقة</button>
+        <button onClick={() => go("requests")} className={`${btnGhost} ${totalPendingRequests > 0 ? "border-amber-500/40 text-amber-600 dark:text-amber-400 font-extrabold" : ""}`}>
+          الطلبات والوارد {totalPendingRequests > 0 ? `(${totalPendingRequests})` : ""}
+        </button>
+        <button onClick={() => go("reviews")} className={`${btnGhost} ${pendingReviewsCount > 0 ? "border-primary/40 text-primary font-extrabold" : ""}`}>
+          التقييمات {pendingReviewsCount > 0 ? `(${pendingReviewsCount})` : ""}
+        </button>
+        <button onClick={() => go("export")} className={btnGhost}>تصدير البيانات</button>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <StatCard label="إجمالي الصنايعية" value={p.length} />
-        <StatCard label="الصنايعية النشطين" value={p.filter((x) => x.status === "active").length} />
+
+      {/* Actionable Alerts for Pending Items if any */}
+      {(totalPendingRequests > 0 || pendingReviewsCount > 0) && (
+        <div className="surface p-4 border border-amber-500/30 bg-amber-500/5 space-y-2.5">
+          <p className="text-sm font-extrabold text-foreground flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
+            تنبيهات تحتاج متابعة من الإدارة:
+          </p>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {appsCount > 0 && (
+              <button
+                onClick={() => go("applications")}
+                className="px-3 py-1.5 rounded-lg bg-card border border-border font-bold hover:border-primary transition-colors flex items-center gap-1.5"
+              >
+                <span>📝 طلبات انضمام جديدة:</span>
+                <span className="font-extrabold text-primary">{appsCount}</span>
+              </button>
+            )}
+            {reportsCount > 0 && (
+              <button
+                onClick={() => go("reports")}
+                className="px-3 py-1.5 rounded-lg bg-card border border-border font-bold hover:border-destructive transition-colors flex items-center gap-1.5"
+              >
+                <span>🚨 بلاغات مفتوحة:</span>
+                <span className="font-extrabold text-destructive">{reportsCount}</span>
+              </button>
+            )}
+            {suggestionsCount > 0 && (
+              <button
+                onClick={() => go("suggestions")}
+                className="px-3 py-1.5 rounded-lg bg-card border border-border font-bold hover:border-primary transition-colors flex items-center gap-1.5"
+              >
+                <span>💡 اقتراحات خدمات:</span>
+                <span className="font-extrabold text-primary">{suggestionsCount}</span>
+              </button>
+            )}
+            {pendingReviewsCount > 0 && (
+              <button
+                onClick={() => go("reviews")}
+                className="px-3 py-1.5 rounded-lg bg-card border border-border font-bold hover:border-amber-500 transition-colors flex items-center gap-1.5"
+              >
+                <span>⭐ تقييمات قيد المراجعة:</span>
+                <span className="font-extrabold text-amber-500">{pendingReviewsCount}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Main Stats Grid */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+        <StatCard label="إجمالي العمال والمهنيين" value={p.length} />
+        <StatCard label="العمال النشطين" value={p.filter((x) => x.status === "active").length} />
+        <StatCard label="طلبات التسجيل المعلقة" value={appsCount} />
+        <StatCard label="البلاغات المفتوحة" value={reportsCount} />
+        <StatCard label="اقتراحات الخدمات" value={suggestionsCount} />
         <StatCard label="تقييمات قيد المراجعة" value={pendingReviewsCount} />
         <StatCard label="تقييمات معتمدة" value={approvedReviewsCount} />
         <StatCard label="إجمالي الأقسام" value={categories.data?.length ?? 0} />
@@ -218,7 +308,12 @@ export function Suggestions({ onCreate }: { onCreate: (name: string) => void }) 
   const { data = [] } = useQuery({
     queryKey: ["admin", "suggestions"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("service_suggestions").select("*").eq("status", "new").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("service_suggestions")
+        .select("*")
+        .not("name", "ilike", "[رسالة تواصل]%")
+        .eq("status", "new")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Sug[];
     },
@@ -290,13 +385,70 @@ export function AuditLog() {
   );
 }
 
-const SETTING_FIELDS: [string, string, string?][] = [
+const GENERAL_FIELDS: [string, string, string?][] = [
   ["app_name", "اسم التطبيق"],
   ["tagline", "الشعار"],
-  ["logo_url", "رابط اللوجو", "ltr"],
-  ["contact_phone", "رقم التواصل", "ltr"],
-  ["contact_whatsapp", "واتساب التواصل", "ltr"],
 ];
+
+const CONTACT_FIELDS: [string, string, string?, string?][] = [
+  ["contact_phone", "رقم الهاتف الأساسي", "ltr", "01012345678"],
+  ["contact_secondary_phone", "رقم هاتف إضافي (اختياري)", "ltr", "011..."],
+  ["contact_whatsapp", "رقم واتساب للتواصل والمراسلة", "ltr", "010..."],
+  ["contact_email", "البريد الإلكتروني (اختياري)", "ltr", "info@example.com"],
+  ["contact_address", "المقر أو العنوان / القرية والمركز (اختياري)", "rtl", "مثال: قرية كذا، مركز كذا"],
+  ["contact_hours", "مواعيد استقبال الاتصالات (اختياري)", "rtl", "مثال: يومياً من ٩ ص حتى ١١ م"],
+  ["contact_facebook", "رابط صفحة أو جروب فيسبوك (اختياري)", "ltr", "https://facebook.com/..."],
+  ["contact_telegram", "رابط قناة أو جروب تليجرام (اختياري)", "ltr", "https://t.me/..."],
+  ["contact_custom_link", "رابط مخصص إضافي (اختياري)", "ltr", "https://..."],
+  ["contact_custom_link_label", "اسم الرابط الإضافي", "rtl", "مثال: صفحتنا على إنستغرام أو جروب القرية"],
+];
+
+function fileToOptimizedDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (file.type === "image/svg+xml") {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 512;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const isPng = file.type === "image/png";
+        const format = isPng ? "image/png" : "image/webp";
+        resolve(canvas.toDataURL(format, 0.88));
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 export function Settings() {
   const qc = useQueryClient();
@@ -304,33 +456,325 @@ export function Settings() {
   const [vals, setVals] = useState<Record<string, string> | null>(null);
   const v = vals ?? Object.fromEntries(Object.entries(data ?? {}).map(([k, x]) => [k, x ?? ""]));
   const [busy, setBusy] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoUrlInput, setLogoUrlInput] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp", "image/svg+xml"].includes(file.type)) {
+      toast.error("يرجى اختيار صورة بصيغة JPG أو PNG أو WEBP أو SVG");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("حجم الصورة يجب ألا يتجاوز 5 ميجابايت");
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      // 1. Generate optimized data URL
+      const dataUrl = await fileToOptimizedDataUrl(file);
+      let finalUrl = dataUrl;
+
+      // 2. Try storage upload if available
+      try {
+        const ext = file.name.split(".").pop() || "png";
+        const path = `platform/logo_${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("provider-photos").upload(path, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+        if (!uploadError) {
+          const { data: pubData } = supabase.storage.from("provider-photos").getPublicUrl(path);
+          if (pubData?.publicUrl) {
+            finalUrl = pubData.publicUrl;
+          }
+        }
+      } catch {
+        // Fallback to optimized data URL if bucket is not configured
+      }
+
+      setVals((prev) => ({ ...(prev ?? v), logo_url: finalUrl }));
+      await supabase.from("app_settings").upsert({ key: "logo_url", value: finalUrl, updated_at: new Date().toISOString() });
+      qc.invalidateQueries({ queryKey: ["settings"] });
+      toast.success("تم تحديث وحفظ لوجو المنصة بنجاح");
+    } catch (err: any) {
+      toast.error(err.message || "فشل رفع اللوجو");
+    } finally {
+      setUploadingLogo(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function applyDirectLogoUrl() {
+    const url = logoUrlInput.trim();
+    if (!url) return;
+    setBusy(true);
+    try {
+      await supabase.from("app_settings").upsert({ key: "logo_url", value: url, updated_at: new Date().toISOString() });
+      setVals((prev) => ({ ...(prev ?? v), logo_url: url }));
+      qc.invalidateQueries({ queryKey: ["settings"] });
+      toast.success("تم حفظ رابط اللوجو بنجاح");
+      setLogoUrlInput("");
+    } catch (err: any) {
+      toast.error(err.message || "فشل حفظ اللوجو");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeLogo() {
+    if (!window.confirm("هل أنت متأكد من إزالة اللوجو المخصص؟")) return;
+    setVals((prev) => ({ ...(prev ?? v), logo_url: "" }));
+    await supabase.from("app_settings").upsert({ key: "logo_url", value: null, updated_at: new Date().toISOString() });
+    qc.invalidateQueries({ queryKey: ["settings"] });
+    toast.success("تمت إزالة اللوجو والعودة للشعار الافتراضي");
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const rows = [...SETTING_FIELDS.map(([k]) => k), "default_provider_status"].map((key) => ({ key, value: v[key]?.trim() || null, updated_at: new Date().toISOString() }));
+    const keysToSave = [
+      ...GENERAL_FIELDS.map(([k]) => k),
+      ...CONTACT_FIELDS.map(([k]) => k),
+      "contact_content",
+      "logo_url",
+      "default_provider_status",
+      "about_content",
+      "privacy_content",
+      "terms_content",
+    ];
+    const currentLogoVal = v["logo_url"] !== undefined ? (v["logo_url"]?.trim() || null) : (data?.["logo_url"] || null);
+    const rows = keysToSave.map((key) => ({
+      key,
+      value: key === "logo_url" ? currentLogoVal : (v[key]?.trim() || null),
+      updated_at: new Date().toISOString(),
+    }));
     const { error } = await supabase.from("app_settings").upsert(rows);
     setBusy(false);
     if (error) { toast.error("ماقدرناش نحفظ الإعدادات، جرّب تاني"); return; }
-    toast.success("اتحفظت الإعدادات");
+    toast.success("اتحفظت الإعدادات بنجاح");
     setVals(null);
-    qc.invalidateQueries();
+    qc.invalidateQueries({ queryKey: ["settings"] });
   }
+
+  const currentLogo = v["logo_url"] || data?.["logo_url"];
+  const appName = v["app_name"] || data?.["app_name"] || "أهل الصنعة";
 
   return (
     <div className="grid gap-5">
-      <ChangePassword />
-      <form onSubmit={save} className="surface grid gap-3 p-5">
-        <h2 className="text-lg font-extrabold">إعدادات التطبيق</h2>
-        {SETTING_FIELDS.map(([k, l, dir]) => (
-          <label key={k} className="grid gap-1 text-sm font-bold">{l}<input value={v[k] ?? ""} dir={dir} onChange={(e) => setVals({ ...v, [k]: e.target.value })} className={input} maxLength={200} /></label>
-        ))}
-        <label className="grid gap-1 text-sm font-bold">الحالة الافتراضية للصنايعي الجديد
-          <select value={v["default_provider_status"] || "active"} onChange={(e) => setVals({ ...v, default_provider_status: e.target.value })} className={input}><option value="active">ظاهر</option><option value="hidden">مخفي</option></select>
-        </label>
-        <p className="text-xs text-muted-foreground">التمييز (Premium) بيتفعّل يدوياً من صفحة الصنايعية مع تاريخ انتهاء اختياري.</p>
-        <button disabled={busy} className={btn}>حفظ</button>
+      {/* Brand & Logo Section */}
+      <div className="surface p-5 space-y-4">
+        <h2 className="text-lg font-extrabold flex items-center gap-2">
+          <ImageIcon className="size-5 text-primary" />
+          لوجو وهوية المنصة
+        </h2>
+        <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl border border-border bg-card">
+          <div className="relative shrink-0">
+            {currentLogo ? (
+              <img
+                src={currentLogo}
+                alt={appName}
+                className="size-20 rounded-2xl object-contain bg-background border border-border shadow-sm p-1"
+              />
+            ) : (
+              <div className="size-20 rounded-2xl bg-primary text-3xl font-extrabold text-primary-foreground grid place-items-center shadow-sm">
+                {appName.charAt(0)}
+              </div>
+            )}
+          </div>
+          <div className="space-y-2 text-center sm:text-start flex-1 min-w-0">
+            <div>
+              <p className="font-extrabold text-sm">{currentLogo ? "لوجو مخصص مفعّل" : "الشعار الافتراضي (الحرف الأول)"}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                صيغ الصور المدعومة: PNG, JPG, WEBP, SVG (يظهر في الهيدر ومعاينة الموقع). يتم تحسين وحفظ الصورة تلقائياً.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                onChange={handleLogoUpload}
+                className="hidden"
+                id="logo-upload-input"
+              />
+              <label
+                htmlFor="logo-upload-input"
+                className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground hover:opacity-90 active:scale-95 transition-all shadow-xs"
+              >
+                {uploadingLogo ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                {currentLogo ? "رفع صورة بديلة من جهازك" : "رفع لوجو من جهازك"}
+              </label>
+
+              {currentLogo ? (
+                <button
+                  type="button"
+                  onClick={removeLogo}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-xs font-bold text-destructive hover:bg-destructive/15 active:scale-95 transition-all"
+                >
+                  <Trash2 className="size-4" />
+                  إزالة اللوجو
+                </button>
+              ) : null}
+            </div>
+
+            {/* Direct URL input fallback */}
+            <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 border-t border-border/60">
+              <input
+                value={logoUrlInput}
+                onChange={(e) => setLogoUrlInput(e.target.value)}
+                placeholder="أو ضع رابط صورة مباشر (https://...)"
+                className="w-full sm:max-w-xs rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary"
+                dir="ltr"
+              />
+              <button
+                type="button"
+                onClick={applyDirectLogoUrl}
+                disabled={!logoUrlInput.trim() || busy}
+                className="w-full sm:w-auto rounded-xl border border-border bg-secondary hover:bg-secondary/80 px-3.5 py-1.5 text-xs font-bold disabled:opacity-50 transition-colors"
+              >
+                تطبيق الرابط
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* General Settings */}
+      <form onSubmit={save} className="surface grid gap-6 p-5 sm:p-6">
+        {/* Section 1: General Platform Info */}
+        <div className="space-y-3">
+          <h2 className="text-lg font-extrabold text-foreground">البيانات العامة للمنصة</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {GENERAL_FIELDS.map(([k, l, dir]) => (
+              <label key={k} className="grid gap-1 text-sm font-bold">
+                {l}
+                <input value={v[k] ?? ""} dir={dir} onChange={(e) => setVals({ ...v, [k]: e.target.value })} className={input} maxLength={200} />
+              </label>
+            ))}
+          </div>
+
+          <label className="grid gap-1 text-sm font-bold">
+            الحالة الافتراضية للصنايعي الجديد
+            <select value={v["default_provider_status"] || "active"} onChange={(e) => setVals({ ...v, default_provider_status: e.target.value })} className={input}>
+              <option value="active">ظاهر في الدليل فوراً</option>
+              <option value="hidden">مخفي (يحتاج تفعيل يدوي)</option>
+            </select>
+          </label>
+        </div>
+
+        {/* Section 2: Contact Us Page Settings */}
+        <div className="pt-4 border-t border-border space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-extrabold flex items-center gap-2 text-foreground">
+                <PhoneCall className="size-5 text-primary" />
+                إدارة صفحة وبيانات «تواصل معنا» (/contact)
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                تحكم في كافة أرقام الهواتف، واتساب، البريد، الروابط، والملاحظات التي تظهر للجمهور في صفحة تواصل معنا.
+              </p>
+            </div>
+            <a
+              href="/contact"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline bg-primary/10 px-3 py-1.5 rounded-xl border border-primary/20 transition-colors"
+            >
+              <span>معاينة صفحة تواصل معنا</span>
+              <Globe className="size-3.5" />
+            </a>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {CONTACT_FIELDS.map(([k, l, dir, placeholder]) => (
+              <label key={k} className="grid gap-1 text-sm font-bold">
+                {l}
+                <input
+                  value={v[k] ?? ""}
+                  dir={dir}
+                  placeholder={placeholder}
+                  onChange={(e) => setVals({ ...v, [k]: e.target.value })}
+                  className={input}
+                  maxLength={300}
+                />
+              </label>
+            ))}
+          </div>
+
+          <label className="grid gap-1.5 text-sm font-bold">
+            <span>ملاحظات وإرشادات مخصصة لصفحة تواصل معنا (اختياري)</span>
+            <textarea
+              rows={3}
+              value={v["contact_content"] ?? ""}
+              onChange={(e) => setVals({ ...v, contact_content: e.target.value })}
+              placeholder="اكتب أي تعليمات تظهر في أعلى صفحة تواصل معنا (مثلاً: أوقات الصيانة، طريقة الإبلاغ السريع، إلخ)..."
+              className={input}
+            />
+          </label>
+        </div>
+
+        {/* Section 3: Content Management (Pages) */}
+        <div className="pt-4 border-t border-border space-y-4">
+          <h2 className="text-lg font-extrabold flex items-center gap-2">
+            <FileText className="size-5 text-primary" />
+            إدارة صفحات المحتوى (من نحن والسياسات)
+          </h2>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            يمكنك تخصيص نصوص هذه الصفحات كما تشاء. إذا تركت أي حقل فارغاً، ستعرض الصفحة المحتوى الاسترشادي الافتراضي الشامل.
+          </p>
+
+          <label className="grid gap-1.5 text-sm font-bold">
+            <span className="flex items-center gap-1.5">
+              <Info className="size-4 text-primary" />
+              محتوى صفحة «من نحن» (About Us)
+            </span>
+            <textarea
+              rows={5}
+              value={v["about_content"] ?? ""}
+              onChange={(e) => setVals({ ...v, about_content: e.target.value })}
+              placeholder="اكتب نبذة عن المنصة وفريق العمل وأهداف الخدمة في قريتك ومحافظتك..."
+              className={input}
+            />
+          </label>
+
+          <label className="grid gap-1.5 text-sm font-bold">
+            <span className="flex items-center gap-1.5">
+              <Shield className="size-4 text-primary" />
+              محتوى صفحة «سياسة الخصوصية» (Privacy Policy)
+            </span>
+            <textarea
+              rows={5}
+              value={v["privacy_content"] ?? ""}
+              onChange={(e) => setVals({ ...v, privacy_content: e.target.value })}
+              placeholder="اكتب تفاصيل سياسة الخصوصية وحماية بيانات أرقام الهواتف والتواصل..."
+              className={input}
+            />
+          </label>
+
+          <label className="grid gap-1.5 text-sm font-bold">
+            <span className="flex items-center gap-1.5">
+              <FileText className="size-4 text-primary" />
+              محتوى صفحة «شروط الاستخدام» (Terms of Service)
+            </span>
+            <textarea
+              rows={5}
+              value={v["terms_content"] ?? ""}
+              onChange={(e) => setVals({ ...v, terms_content: e.target.value })}
+              placeholder="اكتب شروط وضوابط استخدام الدليل ومسؤولية الحرفيين والمستخدمين..."
+              className={input}
+            />
+          </label>
+        </div>
+
+        <button disabled={busy} className={`${btn} mt-2`}>
+          {busy ? "جاري الحفظ..." : "حفظ جميع الإعدادات"}
+        </button>
       </form>
+
       <section className="grid gap-3">
         <h2 className="text-lg font-extrabold">سنوات الخبرة</h2>
         <ExperienceManager />

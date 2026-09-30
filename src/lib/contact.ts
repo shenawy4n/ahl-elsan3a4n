@@ -46,7 +46,9 @@ export async function callProvider(providerId: string) {
 export async function whatsappProvider(providerId: string) {
   const r = await contact(providerId, "whatsapp_click");
   if (!r?.whatsapp) throw new NoNumberError();
-  open(whatsappHref(r.whatsapp), true);
+  const href = whatsappHref(r.whatsapp);
+  if (!href) throw new NoNumberError();
+  open(href, true);
 }
 
 export async function revealProvider(providerId: string) {

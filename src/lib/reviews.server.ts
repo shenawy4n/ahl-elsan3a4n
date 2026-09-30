@@ -26,6 +26,28 @@ export interface ProviderRatingSummary {
   count: number;
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isTableMissingOrSchemaError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const err = error as { code?: string; message?: string; hint?: string; status?: number };
+  const msg = (err.message || "").toLowerCase();
+  const hint = (err.hint || "").toLowerCase();
+  const code = String(err.code || "");
+  return (
+    code === "PGRST205" ||
+    code === "42P01" ||
+    code === "22P02" ||
+    err.status === 404 ||
+    msg.includes("schema cache") ||
+    msg.includes("could not find the table") ||
+    msg.includes("relation") ||
+    msg.includes("does not exist") ||
+    msg.includes("invalid api key") ||
+    hint.includes("double check your supabase")
+  );
+}
+
 /** Insert a new review (defaults to pending) */
 export async function createReview(data: {
   provider_id: string;
@@ -34,9 +56,13 @@ export async function createReview(data: {
   reviewer_name?: string | null;
 }): Promise<{ ok: boolean; id: string }> {
   const newId = crypto.randomUUID();
+  if (!data.provider_id || !UUID_REGEX.test(data.provider_id.trim())) {
+    return { ok: false, id: newId };
+  }
+
   const record = {
     id: newId,
-    provider_id: data.provider_id,
+    provider_id: data.provider_id.trim(),
     rating: data.rating,
     comment: data.comment,
     reviewer_name: data.reviewer_name?.trim() || null,
@@ -48,12 +74,16 @@ export async function createReview(data: {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("reviews").insert(record);
     if (error) {
-      console.error("[reviews.server] Error inserting review to Supabase:", error);
+      if (!isTableMissingOrSchemaError(error)) {
+        console.error("[reviews.server] Error inserting review to Supabase:", error);
+      }
       return { ok: false, id: newId };
     }
     return { ok: true, id: newId };
   } catch (e) {
-    console.error("[reviews.server] Exception inserting review:", e);
+    if (!isTableMissingOrSchemaError(e)) {
+      console.error("[reviews.server] Exception inserting review:", e);
+    }
     return { ok: false, id: newId };
   }
 }
@@ -64,22 +94,30 @@ export async function createReview(data: {
  * Does not expose status, reviewed_at, or any moderation metadata.
  */
 export async function getProviderApprovedReviews(providerId: string): Promise<PublicReview[]> {
+  if (!providerId || !UUID_REGEX.test(providerId.trim())) {
+    return [];
+  }
+
   try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data, error } = await supabase
       .from("reviews")
       .select("id, provider_id, rating, comment, reviewer_name, created_at")
-      .eq("provider_id", providerId)
+      .eq("provider_id", providerId.trim())
       .eq("status", "approved")
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("[reviews.server] Error fetching approved reviews:", error);
+      if (!isTableMissingOrSchemaError(error)) {
+        console.error(`[reviews.server] Error fetching approved reviews:`, error);
+      }
       return [];
     }
     return (data ?? []) as unknown as PublicReview[];
   } catch (e) {
-    console.error("[reviews.server] Exception fetching approved reviews:", e);
+    if (!isTableMissingOrSchemaError(e)) {
+      console.error("[reviews.server] Exception fetching approved reviews:", e);
+    }
     return [];
   }
 }
@@ -90,7 +128,10 @@ export async function getProviderApprovedReviews(providerId: string): Promise<Pu
  * Pending & rejected are NEVER included.
  */
 export async function getProviderRatingSummary(providerId: string): Promise<ProviderRatingSummary> {
-  const reviews = await getProviderApprovedReviews(providerId);
+  if (!providerId || !UUID_REGEX.test(providerId.trim())) {
+    return { average: 0, count: 0 };
+  }
+  const reviews = await getProviderApprovedReviews(providerId.trim());
   if (!reviews.length) {
     return { average: 0, count: 0 };
   }
@@ -108,19 +149,23 @@ export async function getAllRatingSummaries(): Promise<Record<string, ProviderRa
   let approvedReviews: { provider_id: string; rating: number }[] = [];
 
   try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data, error } = await supabase
       .from("reviews")
       .select("provider_id, rating")
       .eq("status", "approved");
 
     if (error) {
-      console.error("[reviews.server] Error fetching ratings for all providers:", error);
+      if (!isTableMissingOrSchemaError(error)) {
+        console.error("[reviews.server] Error fetching ratings for all providers:", error);
+      }
       return {};
     }
     approvedReviews = (data ?? []) as unknown as { provider_id: string; rating: number }[];
   } catch (e) {
-    console.error("[reviews.server] Exception fetching ratings for all providers:", e);
+    if (!isTableMissingOrSchemaError(e)) {
+      console.error("[reviews.server] Exception fetching ratings for all providers:", e);
+    }
     return {};
   }
 
@@ -155,12 +200,16 @@ export async function adminGetReviews(status?: "pending" | "approved" | "rejecte
     }
     const { data, error } = await q;
     if (error) {
-      console.error("[reviews.server] Error in adminGetReviews:", error);
+      if (!isTableMissingOrSchemaError(error)) {
+        console.error("[reviews.server] Error in adminGetReviews:", error);
+      }
       return [];
     }
     return (data ?? []) as unknown as ReviewRecord[];
   } catch (e) {
-    console.error("[reviews.server] Exception in adminGetReviews:", e);
+    if (!isTableMissingOrSchemaError(e)) {
+      console.error("[reviews.server] Exception in adminGetReviews:", e);
+    }
     return [];
   }
 }
@@ -178,7 +227,9 @@ export async function adminModerateReview(
     if (action === "delete") {
       const { error } = await supabaseAdmin.from("reviews").delete().eq("id", reviewId);
       if (error) {
-        console.error("[reviews.server] Error deleting review:", error);
+        if (!isTableMissingOrSchemaError(error)) {
+          console.error("[reviews.server] Error deleting review:", error);
+        }
         return { ok: false };
       }
       return { ok: true };
@@ -193,13 +244,17 @@ export async function adminModerateReview(
         })
         .eq("id", reviewId);
       if (error) {
-        console.error("[reviews.server] Error moderating review:", error);
+        if (!isTableMissingOrSchemaError(error)) {
+          console.error("[reviews.server] Error moderating review:", error);
+        }
         return { ok: false };
       }
       return { ok: true };
     }
   } catch (e) {
-    console.error("[reviews.server] Exception in adminModerateReview:", e);
+    if (!isTableMissingOrSchemaError(e)) {
+      console.error("[reviews.server] Exception in adminModerateReview:", e);
+    }
     return { ok: false };
   }
 }

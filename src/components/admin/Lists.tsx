@@ -1,10 +1,10 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Pencil, Eye, EyeOff, Trash2, ArrowUp, ArrowDown, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { CategoryIcon, ICON_NAMES } from "@/components/CategoryIcon";
-import type { Category } from "@/lib/directory";
+import { type Category, getCategoryUnit, settingsQuery } from "@/lib/directory";
 import { input, btn, useAll } from "./shared";
 
 function IconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -19,28 +19,72 @@ function IconPicker({ value, onChange }: { value: string; onChange: (v: string) 
   );
 }
 
-type CatForm = { id?: string; name: string; icon: string; sort_order: number; status: string };
+type CatForm = { id?: string; name: string; icon: string; sort_order: number; status: string; unit_title: string };
 
 export function Categories({ prefill, onPrefillUsed }: { prefill?: string | null; onPrefillUsed?: () => void }) {
   const qc = useQueryClient();
   const { categories, providers } = useAll();
+  const settings = useQuery(settingsQuery);
   const rows = categories.data ?? [];
   const [form, setForm] = useState<CatForm | null>(null);
+
   if (prefill && !form) {
-    setForm({ name: prefill, icon: "Wrench", sort_order: rows.length + 1, status: "active" });
+    setForm({ name: prefill, icon: "Wrench", sort_order: rows.length + 1, status: "active", unit_title: "" });
     onPrefillUsed?.();
   }
+
+  const count = (id: string) => (providers.data ?? []).filter((p) => p.category_id === id).length;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!form || !form.name.trim()) return;
-    const row = { name: form.name.trim(), icon: form.icon, sort_order: Number(form.sort_order) || 0, status: form.status };
-    const { error } = form.id ? await supabase.from("categories").update(row).eq("id", form.id) : await supabase.from("categories").insert(row);
-    if (error) { toast.error(error.message.includes("duplicate") ? "الاسم موجود بالفعل" : error.message); return; }
-    toast.success("اتحفظ");
+    const trimmedName = form.name.trim();
+    const row: any = { name: trimmedName, icon: form.icon, sort_order: Number(form.sort_order) || 0, status: form.status };
+    
+    let savedId = form.id;
+    if (form.id) {
+      const { error } = await supabase.from("categories").update(row).eq("id", form.id);
+      if (error) { toast.error(error.message.includes("duplicate") ? "الاسم موجود بالفعل" : error.message); return; }
+    } else {
+      const { data, error } = await supabase.from("categories").insert(row).select("id").single();
+      if (error) { toast.error(error.message.includes("duplicate") ? "الاسم موجود بالفعل" : error.message); return; }
+      savedId = data?.id;
+    }
+
+    // Save custom unit into app_settings (cat_unit_{id})
+    if (savedId) {
+      const customUnit = form.unit_title.trim();
+      const settingKey = `cat_unit_${savedId}`;
+      if (customUnit) {
+        await supabase.from("app_settings").upsert({ key: settingKey, value: customUnit, updated_at: new Date().toISOString() });
+      } else {
+        await supabase.from("app_settings").delete().eq("key", settingKey);
+      }
+    }
+
+    toast.success("تم حفظ القسم بنجاح");
     setForm(null);
     qc.invalidateQueries();
   }
+
+  async function deleteCategory(c: Category) {
+    const cnt = count(c.id);
+    if (cnt > 0) {
+      toast.error(`لا يمكن حذف قسم "${c.name}" لوجود ${cnt} صنايعي مسجلين به. يمكنك إخفاؤه بدلاً من ذلك أو نقل الصنايعية.`);
+      return;
+    }
+    if (!window.confirm(`هل أنت متأكد من حذف قسم "${c.name}" نهائياً؟ لن يمكن التراجع.`)) return;
+    const { error } = await supabase.from("categories").delete().eq("id", c.id);
+    if (error) {
+      toast.error(error.message || "تعذر حذف القسم");
+      return;
+    }
+    // Also clean up custom unit setting if exists
+    await supabase.from("app_settings").delete().eq("key", `cat_unit_${c.id}`);
+    toast.success(`تم حذف قسم "${c.name}" بنجاح`);
+    qc.invalidateQueries();
+  }
+
   async function move(c: Category, dir: -1 | 1) {
     const i = rows.findIndex((r) => r.id === c.id);
     const other = rows[i + dir];
@@ -49,21 +93,37 @@ export function Categories({ prefill, onPrefillUsed }: { prefill?: string | null
     await supabase.from("categories").update({ sort_order: c.sort_order === other.sort_order ? c.sort_order + dir : c.sort_order }).eq("id", other.id);
     qc.invalidateQueries();
   }
+
   async function toggle(c: Category) {
     const { error } = await supabase.from("categories").update({ status: c.status === "active" ? "hidden" : "active" }).eq("id", c.id);
     if (error) toast.error(error.message);
     qc.invalidateQueries();
   }
-  const count = (id: string) => (providers.data ?? []).filter((p) => p.category_id === id).length;
 
-  if (form)
+  if (form) {
+    const detectedUnit = getCategoryUnit(form.name);
     return (
       <form onSubmit={save} className="surface grid gap-3 p-5">
         <h2 className="text-xl font-extrabold">{form.id ? "تعديل قسم" : "إضافة قسم"}</h2>
         <div className="flex items-center gap-3">
           <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><CategoryIcon name={form.icon} className="size-7" /></span>
-          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="اسم القسم" maxLength={60} required className={input} />
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="اسم القسم (مثال: طب، تعليم، سباك، نجار)" maxLength={60} required className={input} />
         </div>
+
+        <label className="grid gap-1 text-sm font-bold">
+          مسمى مقدم الخدمة / اللقب
+          <input
+            value={form.unit_title}
+            onChange={(e) => setForm({ ...form, unit_title: e.target.value })}
+            placeholder={`تلقائي حالياً: ${detectedUnit} (مثلاً: طبيب، مدرس، مهندس، فني)`}
+            className={input}
+            maxLength={40}
+          />
+          <span className="text-xs text-muted-foreground">
+            يظهر في الصفحة الرئيسية على شكل: «متاح ١ {form.unit_title.trim() || detectedUnit}». التلقائي للطب «طبيب»، وللتعليم «مدرس»، وللحرف «عامل».
+          </span>
+        </label>
+
         <p className="text-sm font-bold">اختار الأيقونة</p>
         <IconPicker value={form.icon} onChange={(icon) => setForm({ ...form, icon })} />
         <div className="grid grid-cols-2 gap-2">
@@ -76,34 +136,72 @@ export function Categories({ prefill, onPrefillUsed }: { prefill?: string | null
         </div>
       </form>
     );
+  }
 
   return (
     <div className="grid gap-3">
-      <button onClick={() => setForm({ name: "", icon: "Wrench", sort_order: rows.length + 1, status: "active" })} className={btn}>+ إضافة قسم</button>
-      {rows.map((c, i) => (
-        <div key={c.id} className="surface flex items-center gap-3 p-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><CategoryIcon name={c.icon} className="size-5" /></span>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold">{c.name} {c.status !== "active" ? <span className="text-xs text-destructive">(مخفي)</span> : null}</p>
-            <p className="text-xs text-muted-foreground">{count(c.id)} صنايعي · ترتيب {c.sort_order}</p>
+      <button onClick={() => setForm({ name: "", icon: "Wrench", sort_order: rows.length + 1, status: "active", unit_title: "" })} className={btn}>+ إضافة قسم جديد</button>
+      {rows.map((c, i) => {
+        const customUnit = settings.data?.[`cat_unit_${c.id}`] ?? c.unit_title;
+        const currentUnit = getCategoryUnit(c.name, customUnit);
+        const cnt = count(c.id);
+        return (
+          <div key={c.id} className="surface flex items-center gap-3 p-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><CategoryIcon name={c.icon} className="size-5" /></span>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold flex items-center gap-2">
+                <span>{c.name}</span>
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary font-bold">
+                  {currentUnit}
+                </span>
+                {c.status !== "active" ? <span className="text-xs text-destructive">(مخفي)</span> : null}
+              </p>
+              <p className="text-xs text-muted-foreground">{cnt} مسجل · ترتيب {c.sort_order}</p>
+            </div>
+            <div className="flex shrink-0 gap-0.5">
+              <button aria-label="لأعلى" title="لأعلى" disabled={i === 0} onClick={() => move(c, -1)} className="rounded-lg p-2 hover:bg-secondary disabled:opacity-30"><ArrowUp className="size-4" /></button>
+              <button aria-label="لأسفل" title="لأسفل" disabled={i === rows.length - 1} onClick={() => move(c, 1)} className="rounded-lg p-2 hover:bg-secondary disabled:opacity-30"><ArrowDown className="size-4" /></button>
+              <button
+                aria-label="تعديل"
+                title="تعديل"
+                onClick={() => setForm({
+                  id: c.id,
+                  name: c.name,
+                  icon: c.icon ?? "Wrench",
+                  sort_order: c.sort_order,
+                  status: c.status,
+                  unit_title: customUnit ?? "",
+                })}
+                className="rounded-lg p-2 hover:bg-secondary"
+              >
+                <Pencil className="size-5" />
+              </button>
+              <button aria-label="إخفاء/إظهار" title="إخفاء/إظهار" onClick={() => toggle(c)} className="rounded-lg p-2 hover:bg-secondary">
+                {c.status === "active" ? <EyeOff className="size-5" /> : <Eye className="size-5 text-muted-foreground" />}
+              </button>
+              <button
+                aria-label="حذف"
+                title={cnt > 0 ? "لا يمكن الحذف لوجود صنايعية" : "حذف القسم"}
+                onClick={() => deleteCategory(c)}
+                className="rounded-lg p-2 text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="size-5" />
+              </button>
+            </div>
           </div>
-          <div className="flex shrink-0 gap-0.5">
-            <button aria-label="لأعلى" disabled={i === 0} onClick={() => move(c, -1)} className="rounded-lg p-2 hover:bg-secondary disabled:opacity-30"><ArrowUp className="size-4" /></button>
-            <button aria-label="لأسفل" disabled={i === rows.length - 1} onClick={() => move(c, 1)} className="rounded-lg p-2 hover:bg-secondary disabled:opacity-30"><ArrowDown className="size-4" /></button>
-            <button aria-label="تعديل" onClick={() => setForm({ id: c.id, name: c.name, icon: c.icon ?? "Wrench", sort_order: c.sort_order, status: c.status })} className="rounded-lg p-2 hover:bg-secondary"><Pencil className="size-5" /></button>
-            <button aria-label="إخفاء/إظهار" onClick={() => toggle(c)} className="rounded-lg p-2 hover:bg-secondary">{c.status === "active" ? <EyeOff className="size-5" /> : <Eye className="size-5" />}</button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
 export function Areas() {
   const qc = useQueryClient();
-  const { areas } = useAll();
+  const { areas, providers } = useAll();
   const rows = areas.data ?? [];
   const [name, setName] = useState("");
+
+  const count = (id: string) => (providers.data ?? []).filter((p) => p.area_id === id).length;
 
   async function add() {
     if (!name.trim()) return;
@@ -112,6 +210,7 @@ export function Areas() {
     setName("");
     qc.invalidateQueries();
   }
+
   async function rename(id: string, old: string) {
     const v = prompt("الاسم الجديد", old);
     if (!v?.trim()) return;
@@ -119,27 +218,59 @@ export function Areas() {
     if (error) toast.error(error.message);
     qc.invalidateQueries();
   }
+
   async function toggle(id: string, status: string) {
     const { error } = await supabase.from("areas").update({ status: status === "active" ? "hidden" : "active" }).eq("id", id);
     if (error) toast.error(error.message);
     qc.invalidateQueries();
   }
 
+  async function deleteArea(id: string, areaName: string) {
+    const cnt = count(id);
+    if (cnt > 0) {
+      toast.error(`لا يمكن حذف منطقة "${areaName}" لوجود ${cnt} صنايعي مسجلين بها. يمكنك إخفاؤها أو تعديل منطقة الصنايعية أولاً.`);
+      return;
+    }
+    if (!window.confirm(`هل أنت متأكد من حذف منطقة "${areaName}" نهائياً؟`)) return;
+    const { error } = await supabase.from("areas").delete().eq("id", id);
+    if (error) {
+      toast.error(error.message || "تعذر حذف المنطقة");
+      return;
+    }
+    toast.success(`تم حذف منطقة "${areaName}" بنجاح`);
+    qc.invalidateQueries();
+  }
+
   return (
     <div className="grid gap-3">
       <div className="flex gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم منطقة جديدة" maxLength={60} className={input} />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم منطقة أو قرية جديدة" maxLength={60} className={input} />
         <button onClick={add} className={`${btn} shrink-0`}>إضافة</button>
       </div>
-      {rows.map((r) => (
-        <div key={r.id} className="surface flex items-center justify-between p-3">
-          <p className="font-bold">{r.name} {r.status !== "active" ? <span className="text-xs text-destructive">(مخفي)</span> : null}</p>
-          <div className="flex gap-1">
-            <button aria-label="تعديل" onClick={() => rename(r.id, r.name)} className="rounded-lg p-2 hover:bg-secondary"><Pencil className="size-5" /></button>
-            <button aria-label="إخفاء/إظهار" onClick={() => toggle(r.id, r.status)} className="rounded-lg p-2 hover:bg-secondary">{r.status === "active" ? <EyeOff className="size-5" /> : <Eye className="size-5" />}</button>
+      {rows.map((r) => {
+        const cnt = count(r.id);
+        return (
+          <div key={r.id} className="surface flex items-center justify-between p-3">
+            <div>
+              <p className="font-bold">{r.name} {r.status !== "active" ? <span className="text-xs text-destructive">(مخفي)</span> : null}</p>
+              <p className="text-xs text-muted-foreground">{cnt} صنايعي مسجل</p>
+            </div>
+            <div className="flex gap-1">
+              <button aria-label="تعديل" title="تعديل" onClick={() => rename(r.id, r.name)} className="rounded-lg p-2 hover:bg-secondary"><Pencil className="size-5" /></button>
+              <button aria-label="إخفاء/إظهار" title="إخفاء/إظهار" onClick={() => toggle(r.id, r.status)} className="rounded-lg p-2 hover:bg-secondary">{r.status === "active" ? <EyeOff className="size-5" /> : <Eye className="size-5 text-muted-foreground" />}
+              </button>
+              <button
+                aria-label="حذف"
+                title={cnt > 0 ? "لا يمكن الحذف لوجود صنايعية" : "حذف المنطقة"}
+                onClick={() => deleteArea(r.id, r.name)}
+                className="rounded-lg p-2 text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="size-5" />
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -6,6 +6,7 @@ export type Category = {
   icon: string | null;
   sort_order: number;
   status: string;
+  unit_title?: string | null;
 };
 
 export type Area = {
@@ -61,6 +62,7 @@ export function isPremiumActive(p: Pick<Provider, "is_premium" | "premium_expire
 
 export const categoriesQuery = {
   queryKey: ["categories"],
+  staleTime: 1000 * 60 * 10, // 10 minutes cache
   queryFn: async (): Promise<Category[]> => {
     const { data, error } = await supabase
       .from("categories")
@@ -74,6 +76,7 @@ export const categoriesQuery = {
 
 export const areasQuery = {
   queryKey: ["areas"],
+  staleTime: 1000 * 60 * 10, // 10 minutes cache
   queryFn: async (): Promise<Area[]> => {
     const { data, error } = await supabase
       .from("areas")
@@ -84,6 +87,62 @@ export const areasQuery = {
     return (data ?? []) as Area[];
   },
 };
+
+export const categoryCountsQuery = {
+  queryKey: ["category-provider-counts"],
+  staleTime: 1000 * 60 * 5, // 5 minutes cache
+  queryFn: async (): Promise<Record<string, number>> => {
+    const { data, error } = await supabase
+      .from("providers")
+      .select("category_id")
+      .eq("status", "active");
+    if (error) return {};
+    const map: Record<string, number> = {};
+    for (const row of (data ?? []) as { category_id: string }[]) {
+      if (row.category_id) {
+        map[row.category_id] = (map[row.category_id] || 0) + 1;
+      }
+    }
+    return map;
+  },
+};
+
+/**
+ * Returns the designation unit for providers under a given category
+ * (e.g. طب -> طبيب, تعليم -> مدرس, default -> عامل)
+ */
+export function getCategoryUnit(categoryName: string, customUnit?: string | null): string {
+  if (customUnit && customUnit.trim()) {
+    return customUnit.trim();
+  }
+  const clean = categoryName.trim();
+  if (/طب|طبيب|أطباء|دكتور|دكاترة|عياد|علاج|مستشفى|صيدل/i.test(clean)) {
+    return "طبيب";
+  }
+  if (/تعليم|مدرس|مدرسين|معلم|دروس|تدريس|أستاذ/i.test(clean)) {
+    return "مدرس";
+  }
+  if (/هندس|مهندس/i.test(clean)) {
+    return "مهندس";
+  }
+  if (/محام|قانون/i.test(clean)) {
+    return "محامي";
+  }
+  if (/تمريض|ممرض/i.test(clean)) {
+    return "ممرض";
+  }
+  return "عامل";
+}
+
+/**
+ * Formats small notice: e.g. "متاح ١ عامل", "متاح ٢ طبيب", "متاح ٣ مدرس", or "لا يوجد حالياً"
+ */
+export function formatAvailableNotice(count: number, unit: string): string {
+  if (count <= 0) {
+    return "لا يوجد حالياً";
+  }
+  return `متاح ${count} ${unit}`;
+}
 
 export function providersQuery(opts: {
   categoryId?: string | undefined;
@@ -96,6 +155,7 @@ export function providersQuery(opts: {
 }) {
   return {
     queryKey: ["providers", opts],
+    staleTime: 1000 * 60 * 3, // 3 minutes cache
     queryFn: async (): Promise<PublicProvider[]> => {
       let q = supabase.from("providers").select(PUBLIC_PROVIDER_SELECT).eq("status", "active");
       if (opts.categoryId) q = q.eq("category_id", opts.categoryId);
@@ -126,6 +186,7 @@ export function providersQuery(opts: {
 
 export const experienceQuery = {
   queryKey: ["experience"],
+  staleTime: 1000 * 60 * 10, // 10 minutes cache
   queryFn: async (): Promise<ExperienceOption[]> => {
     const { data, error } = await supabase
       .from("experience_options")
@@ -140,6 +201,7 @@ export const experienceQuery = {
 export type AppSettings = Record<string, string | null>;
 export const settingsQuery = {
   queryKey: ["settings"],
+  staleTime: 1000 * 60 * 5, // 5 minutes cache
   queryFn: async (): Promise<AppSettings> => {
     const { data } = await supabase.from("app_settings").select("key,value");
     return Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
@@ -149,6 +211,7 @@ export const settingsQuery = {
 export function providerQuery(id: string) {
   return {
     queryKey: ["provider", id],
+    staleTime: 1000 * 60 * 3, // 3 minutes cache
     queryFn: async (): Promise<PublicProvider | null> => {
       const { data, error } = await supabase
         .from("providers")
@@ -169,26 +232,54 @@ export function arabicPattern(raw: string) {
   return s.replace(/[اأإآ]/g, "_").replace(/[ةه]/g, "_").replace(/[ىي]/g, "_");
 }
 
-/** Normalizes Egyptian numbers to +20XXXXXXXXXX; returns null if invalid. */
+/**
+ * Single source of truth for Egyptian mobile phone validation and normalization.
+ * Standard normalized format: 201XXXXXXXXX (12 digits, mobile starting with 201[0125])
+ * - 01012345678   -> 201012345678
+ * - +201012345678 -> 201012345678
+ * - 201012345678  -> 201012345678
+ * - 00201012345678 -> 201012345678
+ * - ٠١٠١٢٣٤٥٦٧٨   -> 201012345678
+ * Returns null if invalid or empty.
+ */
+export const EG_PHONE_REGEX = /^201[0125]\d{8}$/;
+
 export function normalizeEgPhone(phone: string | null | undefined): string | null {
   if (!phone) return null;
-  let n = phone.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/[^\d]/g, "");
-  if (n.startsWith("0020")) n = n.slice(4);
-  else if (n.startsWith("20") && n.length === 12) n = n.slice(2);
-  if (n.startsWith("0")) n = n.slice(1);
-  if (/^1[0125]\d{8}$/.test(n)) return `+20${n}`; // mobile
-  if (/^\d{8,9}$/.test(n)) return `+20${n}`; // landline with area code
+  // Convert Eastern Arabic numerals to standard digits and strip non-digits/+
+  let n = phone
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[^\d+]/g, "");
+
+  if (n.startsWith("+")) n = n.slice(1);
+  if (n.startsWith("00")) n = n.slice(2);
+
+  // If starts with 01XXXXXXXXX (11 digits) -> 201XXXXXXXXX
+  if (n.startsWith("01")) {
+    n = "2" + n;
+  } else if (n.startsWith("1") && n.length === 10) {
+    // If starts with 1XXXXXXXXX (10 digits) -> 201XXXXXXXXX
+    n = "20" + n;
+  }
+
+  // Must match exactly 201[0125] followed by 8 digits (12 digits total)
+  if (EG_PHONE_REGEX.test(n)) {
+    return n;
+  }
   return null;
 }
 
-export function telHref(phone: string) {
-  const n = normalizeEgPhone(phone);
-  return n ? `tel:${n}` : null;
+/** Check if a phone string is a valid Egyptian mobile number */
+export function isValidEgPhone(phone: string | null | undefined): boolean {
+  return normalizeEgPhone(phone) !== null;
 }
 
-export function whatsappHref(phone: string) {
-  let n = phone.replace(/[^\d]/g, "");
-  if (n.startsWith("00")) n = n.slice(2);
-  else if (n.startsWith("0")) n = "20" + n.slice(1);
-  return `https://wa.me/${n}`;
+export function telHref(phone: string | null | undefined): string | null {
+  const n = normalizeEgPhone(phone);
+  return n ? `tel:+${n}` : null;
+}
+
+export function whatsappHref(phone: string | null | undefined): string | null {
+  const n = normalizeEgPhone(phone);
+  return n ? `https://wa.me/${n}` : null;
 }
