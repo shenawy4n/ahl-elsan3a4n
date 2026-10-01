@@ -15,15 +15,32 @@ import { ProviderReviews } from "@/components/ProviderReviews";
 import { WorkingHoursView } from "@/components/WorkingHoursView";
 import { SiteFooter } from "@/components/SiteFooter";
 
+function ProviderErrorComponent() {
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between">
+      <SiteHeader />
+      <main className="mx-auto w-full max-w-md p-6 text-center space-y-4">
+        <h1 className="text-xl font-extrabold">تعذر تحميل بيانات العامل</h1>
+        <p className="text-sm text-muted-foreground">ربما تم حذف هذا الحساب أو حدث خطأ أثناء الاتصال.</p>
+        <Link to="/" className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground">
+          <ArrowRight className="size-3.5" /> الرئيسية
+        </Link>
+      </main>
+      <SiteFooter />
+    </div>
+  );
+}
+
 export const Route = createFileRoute("/provider/$id")({
   head: () => ({
     meta: [
-      { title: "ملف الصنايعي — أهل الصنعة" },
-      { name: "description", content: "بيانات الصنايعي ورقم التليفون والواتساب للتواصل المباشر." },
-      { property: "og:title", content: "ملف الصنايعي — أهل الصنعة" },
-      { property: "og:description", content: "اتصل بالصنايعي مباشرة من أهل الصنعة." },
+      { title: "ملف العامل — أهل الصنعة" },
+      { name: "description", content: "بيانات العامل ورقم التليفون والواتساب للتواصل المباشر." },
+      { property: "og:title", content: "ملف العامل — أهل الصنعة" },
+      { property: "og:description", content: "اتصل بالعامل مباشرة من أهل الصنعة." },
     ],
   }),
+  errorComponent: ProviderErrorComponent,
   component: ProviderPage,
 });
 
@@ -98,7 +115,7 @@ function ProviderPage() {
               <div className="mt-5">
                 {p.description ? <p className="mb-3 whitespace-pre-line text-base">{p.description}</p> : null}
                 <Row icon={Award} label="سنوات الخبرة" value={p.experience_options?.label ?? null} />
-                <Row icon={Wrench} label="الخدمات" value={p.services} />
+                <Row icon={Wrench} label="الخدمات" value={Array.isArray(p.services) ? (p.services as string[]).join("، ") : (p.services as unknown as string)} />
                 <Row icon={Wallet} label="الأسعار" value={p.price_description} />
                 <WorkingHoursView workingHoursRaw={p.working_hours} />
               </div>

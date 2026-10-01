@@ -5,10 +5,10 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const addSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(255),
   password: z.string().min(8).max(72).optional().or(z.literal("")),
-  is_owner: z.boolean().default(false),
+  role: z.enum(["admin", "moderator"]).default("admin"),
 });
 
-/** Owner-only: authorize an email as admin or owner, and optionally create its login. */
+/** Owner-only: authorize an email as admin, and optionally create its login. */
 export const addAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => addSchema.parse(d))
@@ -17,15 +17,32 @@ export const addAdmin = createServerFn({ method: "POST" })
     const caller = (context as any)?.user;
     if (!caller) return { ok: false as const, code: "unauthorized" };
 
+    const callerEmail = caller.email?.toLowerCase();
+
     // Verify caller is owner
     const { data: callerAdmin } = await supabaseAdmin
       .from("admin_users")
       .select("is_owner")
-      .eq("email", caller.email?.toLowerCase())
-      .single();
+      .eq("email", callerEmail)
+      .maybeSingle();
 
     if (!callerAdmin?.is_owner) {
-      return { ok: false as const, code: "not_owner" };
+      // Self-bootstrap safeguard: if there are no owners in admin_users, caller becomes owner
+      const { count } = await supabaseAdmin
+        .from("admin_users")
+        .select("id", { count: "exact", head: true })
+        .eq("is_owner", true);
+
+      if (count === 0 && callerEmail) {
+        await supabaseAdmin.from("admin_users").upsert({
+          email: callerEmail,
+          is_owner: true,
+          active: true,
+          added_by_email: "system",
+        });
+      } else {
+        return { ok: false as const, code: "not_owner" };
+      }
     }
 
     // Check if email already in admin_users
@@ -39,12 +56,12 @@ export const addAdmin = createServerFn({ method: "POST" })
       return { ok: false as const, code: "already_admin" };
     }
 
-    // Insert admin user
+    // Insert new admin (is_owner is always false because of admin_users_single_owner constraint)
     const { data: created, error: insertError } = await supabaseAdmin
       .from("admin_users")
       .insert({
         email: data.email,
-        is_owner: data.is_owner,
+        is_owner: false,
         active: true,
         added_by_email: caller.email,
       })
@@ -52,6 +69,7 @@ export const addAdmin = createServerFn({ method: "POST" })
       .single();
 
     if (insertError) {
+      console.error("[Admins] Error inserting admin:", insertError);
       return { ok: false as const, code: insertError.message };
     }
 
@@ -59,7 +77,7 @@ export const addAdmin = createServerFn({ method: "POST" })
     await supabaseAdmin.from("audit_log").insert({
       admin_id: caller.id,
       admin_email: caller.email,
-      action: data.is_owner ? "admin_added_as_owner" : "admin_added",
+      action: "admin_added",
       target: data.email,
     });
 
@@ -79,14 +97,13 @@ export const addAdmin = createServerFn({ method: "POST" })
     return { ok: true as const, warning };
   });
 
-/** Owner-only: change admin role between Admin and Owner. */
-export const updateAdminRole = createServerFn({ method: "POST" })
+/** Owner-only: transfer primary ownership to another admin. */
+export const transferOwnership = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
     z
       .object({
-        id: z.string().uuid(),
-        is_owner: z.boolean(),
+        targetAdminId: z.string().uuid(),
       })
       .parse(d)
   )
@@ -95,41 +112,51 @@ export const updateAdminRole = createServerFn({ method: "POST" })
     const caller = (context as any)?.user;
     if (!caller) return { ok: false as const, code: "unauthorized" };
 
+    const callerEmail = caller.email?.toLowerCase();
     const { data: callerAdmin } = await supabaseAdmin
       .from("admin_users")
-      .select("is_owner")
-      .eq("email", caller.email?.toLowerCase())
+      .select("id, is_owner")
+      .eq("email", callerEmail)
       .single();
 
     if (!callerAdmin?.is_owner) {
       return { ok: false as const, code: "not_owner" };
     }
 
-    const { data: target } = await supabaseAdmin
+    const { data: targetAdmin } = await supabaseAdmin
       .from("admin_users")
-      .select("email, is_owner")
-      .eq("id", data.id)
+      .select("id, email, active")
+      .eq("id", data.targetAdminId)
       .single();
 
-    if (!target) return { ok: false as const, code: "not_found" };
+    if (!targetAdmin) return { ok: false as const, code: "not_found" };
+    if (!targetAdmin.active) return { ok: false as const, code: "target_inactive" };
 
-    // Prevent demoting yourself if you are an owner
-    if (target.email === caller.email?.toLowerCase() && !data.is_owner) {
-      return { ok: false as const, code: "cannot_demote_self" };
-    }
-
-    const { error } = await supabaseAdmin
+    // 1. Demote current owner to false
+    const { error: demoteErr } = await supabaseAdmin
       .from("admin_users")
-      .update({ is_owner: data.is_owner })
-      .eq("id", data.id);
+      .update({ is_owner: false })
+      .eq("id", callerAdmin.id);
 
-    if (error) return { ok: false as const, code: error.message };
+    if (demoteErr) return { ok: false as const, code: demoteErr.message };
+
+    // 2. Promote target to true
+    const { error: promoteErr } = await supabaseAdmin
+      .from("admin_users")
+      .update({ is_owner: true })
+      .eq("id", targetAdmin.id);
+
+    if (promoteErr) {
+      // Revert if error
+      await supabaseAdmin.from("admin_users").update({ is_owner: true }).eq("id", callerAdmin.id);
+      return { ok: false as const, code: promoteErr.message };
+    }
 
     await supabaseAdmin.from("audit_log").insert({
       admin_id: caller.id,
       admin_email: caller.email,
-      action: data.is_owner ? "admin_promoted_to_owner" : "owner_demoted_to_admin",
-      target: target.email,
+      action: "ownership_transferred",
+      target: targetAdmin.email,
     });
 
     return { ok: true as const };
@@ -273,7 +300,6 @@ export const setAdminPassword = createServerFn({ method: "POST" })
 
     const targetAuth = users.users.find((u) => u.email?.toLowerCase() === data.email);
     if (!targetAuth) {
-      // Create auth user if not found
       const { error: createErr } = await supabaseAdmin.auth.admin.createUser({
         email: data.email,
         password: data.password,

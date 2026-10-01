@@ -18,7 +18,25 @@ type Form = {
 const empty: Form = { name: "", category_id: "", area_id: "", phone: "", secondary_phone: "", whatsapp: "", description: "", services: "", price_description: "", working_hours: "", photo_url: "", status: "active", is_premium: false, premium_expires_at: "", experience_id: "", is_verified: false };
 
 function toForm(p: ProviderWithRefs): Form {
-  return { id: p.id, name: p.name, category_id: p.category_id, area_id: p.area_id, phone: p.phone, secondary_phone: p.secondary_phone ?? "", whatsapp: p.whatsapp ?? "", description: p.description ?? "", services: p.services ?? "", price_description: p.price_description ?? "", working_hours: p.working_hours ?? "", photo_url: p.photo_url ?? "", status: p.status, is_premium: p.is_premium, premium_expires_at: p.premium_expires_at ? p.premium_expires_at.slice(0, 10) : "", experience_id: p.experience_id ?? "", is_verified: p.is_verified };
+  return {
+    id: p.id,
+    name: p.name,
+    category_id: p.category_id,
+    area_id: p.area_id,
+    phone: p.phone,
+    secondary_phone: p.secondary_phone ?? "",
+    whatsapp: p.whatsapp ?? "",
+    description: p.description ?? "",
+    services: Array.isArray(p.services) ? (p.services as string[]).join("، ") : (p.services ?? ""),
+    price_description: p.price_description ?? "",
+    working_hours: p.working_hours ?? "",
+    photo_url: p.photo_url ?? "",
+    status: p.status,
+    is_premium: p.is_premium,
+    premium_expires_at: p.premium_expires_at ? p.premium_expires_at.slice(0, 10) : "",
+    experience_id: p.experience_id ?? "",
+    is_verified: p.is_verified,
+  };
 }
 
 type Patch = Partial<{ status: string; is_verified: boolean; is_premium: boolean; premium_expires_at: string | null }>;
@@ -212,7 +230,7 @@ function ProviderForm({ form, categories, areas, experience, onDone }: { form: F
           secondary_phone: normSecondary,
           whatsapp: normWhatsapp,
           description: n(f.description),
-          services: n(f.services),
+          services: (f.services ? f.services.split(/[,،\n]+/).map((s) => s.trim()).filter(Boolean) : []) as unknown as string,
           price_description: n(f.price_description),
           working_hours: n(f.working_hours),
           photo_url: photoFile ? null : n(f.photo_url),
@@ -278,7 +296,7 @@ function ProviderForm({ form, categories, areas, experience, onDone }: { form: F
           secondary_phone: normSecondary,
           whatsapp: normWhatsapp,
           description: n(f.description),
-          services: n(f.services),
+          services: (f.services ? f.services.split(/[,،\n]+/).map((s) => s.trim()).filter(Boolean) : []) as unknown as string,
           price_description: n(f.price_description),
           working_hours: n(f.working_hours),
           photo_url: n(finalPhotoUrl),

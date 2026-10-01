@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const messageSchema = z.object({
@@ -22,14 +21,15 @@ const messageSchema = z.object({
 export const sendContactMessage = createServerFn({ method: "POST" })
   .inputValidator((d) => messageSchema.parse(d))
   .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
     // Sanitize phone
     const cleanPhone = data.phone.replace(/[^\d+]/g, "");
 
     const titlePrefix = data.subject ? `${data.subject} — ` : "";
     const fullName = `[رسالة تواصل] ${titlePrefix}${data.name}`;
 
-    const { data: inserted, error } = await supabaseAdmin
-      .from("service_suggestions")
+    const { data: inserted, error } = await (supabaseAdmin.from("service_suggestions" as never) as any)
       .insert({
         name: fullName,
         phone: cleanPhone,
@@ -59,6 +59,7 @@ export const updateMessageStatus = createServerFn({ method: "POST" })
       .parse(d)
   )
   .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin
       .from("service_suggestions")
       .update({ status: data.status })
@@ -79,6 +80,7 @@ export const deleteMessage = createServerFn({ method: "POST" })
       .parse(d)
   )
   .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin
       .from("service_suggestions")
       .delete()

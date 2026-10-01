@@ -13,11 +13,12 @@ import {
   CheckCircle2,
   XCircle,
   X,
+  ArrowRightLeft,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   addAdmin,
-  updateAdminRole,
+  transferOwnership,
   setAdminActiveStatus,
   revokeAdminAccount,
   setAdminPassword,
@@ -37,10 +38,10 @@ const ERR_MAP: Record<string, string> = {
   already_admin: "هذا البريد الإلكتروني لديه صلاحية مسؤول بالفعل.",
   invalid_email: "البريد الإلكتروني المدخل غير صالح.",
   not_owner: "هذا الإجراء متاح لمالك النظام (Owner) فقط.",
-  cannot_demote_self: "لا يمكنك سحب صفة المالك من حسابك الشخصي.",
-  cannot_suspend_owner: "لا يمكن إيقاف حساب المالك.",
+  cannot_suspend_owner: "لا يمكن إيقاف حساب المالك الرئيسي.",
   cannot_revoke_self: "لا يمكنك سحب صلاحية حسابك الشخصي.",
   not_found: "المسؤول غير موجود.",
+  target_inactive: "لا يمكن نقل الملكية لحساب موقوف.",
 };
 
 const getErrorMsg = (code: string) =>
@@ -49,14 +50,14 @@ const getErrorMsg = (code: string) =>
 export function Admins() {
   const qc = useQueryClient();
   const addFn = useServerFn(addAdmin);
-  const updateRoleFn = useServerFn(updateAdminRole);
+  const transferFn = useServerFn(transferOwnership);
   const setActiveFn = useServerFn(setAdminActiveStatus);
   const revokeFn = useServerFn(revokeAdminAccount);
   const setPassFn = useServerFn(setAdminPassword);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isOwnerRole, setIsOwnerRole] = useState(false);
+  const [role, setRole] = useState<"admin" | "moderator">("admin");
   const [busy, setBusy] = useState(false);
 
   // Password reset modal state
@@ -70,6 +71,7 @@ export function Admins() {
       const { data, error } = await supabase
         .from("admin_users" as never)
         .select("*")
+        .order("is_owner", { ascending: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as AdminRow[];
@@ -103,24 +105,19 @@ export function Admins() {
         data: {
           email: em,
           password: password || undefined,
-          is_owner: isOwnerRole,
+          role,
         },
       });
       if (!r.ok) {
         toast.error(getErrorMsg(r.code));
         return;
       }
-      toast.success(
-        isOwnerRole
-          ? "تمت إضافة المالك الجديد بنجاح"
-          : "تمت إضافة المسؤول بنجاح"
-      );
+      toast.success("تمت إضافة المسؤول بنجاح");
       if (r.warning) {
         toast.warning(r.warning);
       }
       setEmail("");
       setPassword("");
-      setIsOwnerRole(false);
       refresh();
     } catch {
       toast.error("حدث خطأ أثناء إضافة المسؤول");
@@ -129,20 +126,25 @@ export function Admins() {
     }
   }
 
-  async function handleChangeRole(admin: AdminRow, newIsOwner: boolean) {
-    const roleName = newIsOwner ? "مالك للنظام (Owner)" : "مسؤول عام (Admin)";
-    if (!confirm(`هل أنت متأكد من تغيير صلاحية ${admin.email} إلى ${roleName}؟`)) return;
+  async function handleTransferOwnership(admin: AdminRow) {
+    if (
+      !confirm(
+        `تحذير هام: هل أنت متأكد من نقل الملكية الرئيسية للنظام بالكامل إلى (${admin.email})؟ بعد ذلك سيصبح هو المالك الرئيسي الوحيد.`
+      )
+    ) {
+      return;
+    }
 
     try {
-      const r = await updateRoleFn({ data: { id: admin.id, is_owner: newIsOwner } });
+      const r = await transferFn({ data: { targetAdminId: admin.id } });
       if (!r.ok) {
         toast.error(getErrorMsg(r.code));
         return;
       }
-      toast.success(`تم تغيير دور ${admin.email} إلى ${roleName}`);
+      toast.success(`تم نقل ملكية النظام بنجاح إلى ${admin.email}`);
       refresh();
     } catch {
-      toast.error("حدث خطأ أثناء تعديل الدور");
+      toast.error("حدث خطأ أثناء نقل الملكية");
     }
   }
 
@@ -224,7 +226,7 @@ export function Admins() {
           <div>
             <h2 className="text-lg font-extrabold text-foreground">إضافة مسؤول جديد</h2>
             <p className="text-xs text-muted-foreground">
-              حدد البريد الإلكتروني وكلمة المرور والدور المطلوب لمنحه صلاحيات الدخول
+              حدد البريد الإلكتروني وكلمة المرور لمنحه صلاحيات الدخول إلى لوحة التحكم
             </p>
           </div>
         </div>
@@ -256,28 +258,27 @@ export function Admins() {
           </label>
 
           <label className="grid gap-1 text-sm font-bold sm:col-span-1">
-            الدور والصلاحية *
+            الدور المطلوب
             <select
-              value={isOwnerRole ? "owner" : "admin"}
-              onChange={(e) => setIsOwnerRole(e.target.value === "owner")}
+              value={role}
+              onChange={(e) => setRole(e.target.value as "admin" | "moderator")}
               className={input}
             >
               <option value="admin">مسؤول عام (Admin)</option>
-              <option value="owner">مالك النظام (Owner)</option>
+              <option value="moderator">مشرف محتوى (Moderator)</option>
             </select>
           </label>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           <p className="text-xs text-muted-foreground">
-            • <strong className="text-foreground">المسؤول:</strong> يدير العمال والطلبات والتقييمات والأقسام. <br />
-            • <strong className="text-primary font-bold">المالك:</strong> يتمتع بكامل الصلاحيات بما فيها إدارة المسؤولين وتصدير البيانات.
+            • <strong className="text-foreground">المسؤول:</strong> يدير العمال، اعتماد الطلبات، التقييمات، والخدمات.
           </p>
           <button
             disabled={busy}
             className="rounded-xl bg-primary px-5 py-2.5 text-xs font-extrabold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 shadow-xs transition-all"
           >
-            {busy ? "جاري الإضافة..." : "إضافة وحفظ الصلاحية"}
+            {busy ? "جاري الإضافة..." : "إضافة وحفظ المسؤول"}
           </button>
         </div>
       </form>
@@ -289,7 +290,7 @@ export function Admins() {
             <ShieldCheck className="size-5 text-primary" />
             المسؤولون الحاليون ({list.data?.length ?? 0})
           </h2>
-          <span className="text-xs text-muted-foreground">يمكنك تعديل الدور أو إيقاف أو حذف الحسابات</span>
+          <span className="text-xs text-muted-foreground">يمكنك تعديل الحالة أو كلمة المرور أو حذف الحسابات</span>
         </div>
 
         {list.isLoading ? (
@@ -311,7 +312,7 @@ export function Admins() {
                     </p>
                     {admin.is_owner ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[11px] font-black text-primary">
-                        <Crown className="size-3" /> مالك (Owner)
+                        <Crown className="size-3 text-amber-500" /> المالك الرئيسي (Owner)
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 rounded-full bg-secondary border border-border px-2.5 py-0.5 text-[11px] font-bold text-foreground">
@@ -336,25 +337,6 @@ export function Admins() {
 
                 {/* Role and Action Controls */}
                 <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                  {/* Toggle Role Button */}
-                  <button
-                    onClick={() => handleChangeRole(admin, !admin.is_owner)}
-                    title={admin.is_owner ? "تحويل إلى مسؤول عادي" : "ترقية إلى مالك"}
-                    className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold hover:bg-secondary transition-colors"
-                  >
-                    {admin.is_owner ? (
-                      <>
-                        <Shield className="size-3.5 text-muted-foreground" />
-                        <span>تحويل لمسؤول</span>
-                      </>
-                    ) : (
-                      <>
-                        <Crown className="size-3.5 text-amber-500" />
-                        <span>ترقية لمالك</span>
-                      </>
-                    )}
-                  </button>
-
                   {/* Reset Password Button */}
                   <button
                     onClick={() => {
@@ -368,28 +350,42 @@ export function Admins() {
                     <span>كلمة السر</span>
                   </button>
 
-                  {/* Toggle Active/Inactive */}
-                  <button
-                    onClick={() => handleToggleActive(admin)}
-                    title={admin.active ? "إيقاف الحساب" : "تفعيل الحساب"}
-                    className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors ${
-                      admin.active
-                        ? "border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
-                        : "border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
-                    }`}
-                  >
-                    <Power className="size-3.5" />
-                    <span>{admin.active ? "إيقاف" : "تفعيل"}</span>
-                  </button>
+                  {!admin.is_owner && (
+                    <>
+                      {/* Transfer Ownership Button */}
+                      <button
+                        onClick={() => handleTransferOwnership(admin)}
+                        title="نقل الملكية الرئيسية لهذا المسؤول"
+                        className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold hover:bg-secondary text-amber-600 dark:text-amber-400 transition-colors"
+                      >
+                        <ArrowRightLeft className="size-3.5" />
+                        <span>نقل الملكية</span>
+                      </button>
 
-                  {/* Revoke Admin Button */}
-                  <button
-                    onClick={() => handleRevoke(admin)}
-                    title="سحب الصلاحية وحذف الحساب"
-                    className="inline-flex items-center gap-1 rounded-lg border border-destructive/20 text-destructive hover:bg-destructive/10 px-2 py-1.5 text-xs font-bold transition-colors"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
+                      {/* Toggle Active/Inactive */}
+                      <button
+                        onClick={() => handleToggleActive(admin)}
+                        title={admin.active ? "إيقاف الحساب" : "تفعيل الحساب"}
+                        className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors ${
+                          admin.active
+                            ? "border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+                            : "border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+                        }`}
+                      >
+                        <Power className="size-3.5" />
+                        <span>{admin.active ? "إيقاف" : "تفعيل"}</span>
+                      </button>
+
+                      {/* Revoke Admin Button */}
+                      <button
+                        onClick={() => handleRevoke(admin)}
+                        title="سحب الصلاحية وحذف الحساب"
+                        className="inline-flex items-center gap-1 rounded-lg border border-destructive/20 text-destructive hover:bg-destructive/10 px-2 py-1.5 text-xs font-bold transition-colors"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
