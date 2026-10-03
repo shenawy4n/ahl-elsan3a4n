@@ -24,6 +24,7 @@ import {
   setAdminPassword,
 } from "@/lib/admins.functions";
 import { input } from "./shared";
+import { ConfirmModal, type ConfirmState } from "./ConfirmModal";
 
 type AdminRow = {
   id: string;
@@ -59,6 +60,7 @@ export function Admins() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"admin" | "moderator">("admin");
   const [busy, setBusy] = useState(false);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
   // Password reset modal state
   const [passModalAdmin, setPassModalAdmin] = useState<AdminRow | null>(null);
@@ -126,62 +128,75 @@ export function Admins() {
     }
   }
 
-  async function handleTransferOwnership(admin: AdminRow) {
-    if (
-      !confirm(
-        `تحذير هام: هل أنت متأكد من نقل الملكية الرئيسية للنظام بالكامل إلى (${admin.email})؟ بعد ذلك سيصبح هو المالك الرئيسي الوحيد.`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const r = await transferFn({ data: { targetAdminId: admin.id } });
-      if (!r.ok) {
-        toast.error(getErrorMsg(r.code));
-        return;
-      }
-      toast.success(`تم نقل ملكية النظام بنجاح إلى ${admin.email}`);
-      refresh();
-    } catch {
-      toast.error("حدث خطأ أثناء نقل الملكية");
-    }
+  function handleTransferOwnership(admin: AdminRow) {
+    setConfirmState({
+      open: true,
+      title: "نقل الملكية الرئيسية للنظام",
+      description: `تحذير هام: هل أنت متأكد من نقل الملكية الرئيسية للنظام بالكامل إلى (${admin.email})؟ بعد ذلك سيصبح هو المالك الرئيسي الوحيد.`,
+      confirmLabel: "نعم، انقل الملكية",
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          const r = await transferFn({ data: { targetAdminId: admin.id } });
+          if (!r.ok) {
+            toast.error(getErrorMsg(r.code));
+            return;
+          }
+          toast.success(`تم نقل ملكية النظام بنجاح إلى ${admin.email}`);
+          refresh();
+        } catch {
+          toast.error("حدث خطأ أثناء نقل الملكية");
+        }
+      },
+    });
   }
 
-  async function handleToggleActive(admin: AdminRow) {
+  function handleToggleActive(admin: AdminRow) {
     const nextState = !admin.active;
     const actionLabel = nextState ? "تفعيل" : "إيقاف";
-    if (!confirm(`هل أنت متأكد من ${actionLabel} حساب ${admin.email}؟`)) return;
-
-    try {
-      const r = await setActiveFn({ data: { id: admin.id, active: nextState } });
-      if (!r.ok) {
-        toast.error(getErrorMsg(r.code));
-        return;
-      }
-      toast.success(`تم ${actionLabel} الحساب بنجاح`);
-      refresh();
-    } catch {
-      toast.error("حدث خطأ أثناء تحديث حالة الحساب");
-    }
+    setConfirmState({
+      open: true,
+      title: `${actionLabel} حساب المسؤول`,
+      description: `هل أنت متأكد من ${actionLabel} حساب (${admin.email})؟`,
+      confirmLabel: `نعم، ${actionLabel} الحساب`,
+      destructive: !nextState,
+      onConfirm: async () => {
+        try {
+          const r = await setActiveFn({ data: { id: admin.id, active: nextState } });
+          if (!r.ok) {
+            toast.error(getErrorMsg(r.code));
+            return;
+          }
+          toast.success(`تم ${actionLabel} الحساب بنجاح`);
+          refresh();
+        } catch {
+          toast.error("حدث خطأ أثناء تحديث حالة الحساب");
+        }
+      },
+    });
   }
 
-  async function handleRevoke(admin: AdminRow) {
-    if (!confirm(`تحذير: هل أنت متأكد من حذف وسحب صلاحية المسؤول (${admin.email}) نهائياً؟`)) {
-      return;
-    }
-
-    try {
-      const r = await revokeFn({ data: { id: admin.id } });
-      if (!r.ok) {
-        toast.error(getErrorMsg(r.code));
-        return;
-      }
-      toast.success(`تم سحب صلاحية ${admin.email} بنجاح`);
-      refresh();
-    } catch {
-      toast.error("حدث خطأ أثناء سحب الصلاحية");
-    }
+  function handleRevoke(admin: AdminRow) {
+    setConfirmState({
+      open: true,
+      title: "سحب صلاحية المسؤول نهائياً",
+      description: `تحذير: هل أنت متأكد من حذف وسحب صلاحية المسؤول (${admin.email}) نهائياً؟`,
+      confirmLabel: "نعم، اسحب الصلاحية",
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          const r = await revokeFn({ data: { id: admin.id } });
+          if (!r.ok) {
+            toast.error(getErrorMsg(r.code));
+            return;
+          }
+          toast.success(`تم سحب صلاحية ${admin.email} بنجاح`);
+          refresh();
+        } catch {
+          toast.error("حدث خطأ أثناء سحب الصلاحية");
+        }
+      },
+    });
   }
 
   async function handleSetPassword(e: React.FormEvent) {
@@ -454,6 +469,7 @@ export function Admins() {
           </form>
         </div>
       )}
+      {confirmState ? <ConfirmModal state={confirmState} onClose={() => setConfirmState(null)} /> : null}
     </div>
   );
 }

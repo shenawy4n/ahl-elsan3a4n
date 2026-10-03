@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { updateMessageStatus, deleteMessage } from "@/lib/messages.functions";
+import { ConfirmModal, type ConfirmState } from "./ConfirmModal";
 
 type ContactMsg = {
   id: string;
@@ -40,6 +41,7 @@ export function ContactMessages() {
 
   const [filter, setFilter] = useState<string>("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ["admin", "contact-messages"],
@@ -81,19 +83,27 @@ export function ContactMessages() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("هل أنت متأكد من حذف هذه الرسالة نهائياً؟")) return;
-    try {
-      const r = await deleteFn({ data: { id } });
-      if (!r.ok) {
-        toast.error("تعذر حذف الرسالة");
-        return;
-      }
-      toast.success("تم حذف الرسالة بنجاح");
-      refresh();
-    } catch {
-      toast.error("حدث خطأ أثناء الحذف");
-    }
+  function handleDelete(id: string) {
+    setConfirmState({
+      open: true,
+      title: "تأكيد حذف الرسالة",
+      description: "هل أنت متأكد من حذف هذه الرسالة نهائياً؟",
+      confirmLabel: "نعم، احذف الرسالة",
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          const r = await deleteFn({ data: { id } });
+          if (!r.ok) {
+            toast.error("تعذر حذف الرسالة");
+            return;
+          }
+          toast.success("تم حذف الرسالة بنجاح");
+          refresh();
+        } catch {
+          toast.error("حدث خطأ أثناء الحذف");
+        }
+      },
+    });
   }
 
   const filtered = messages.filter((m) => {
@@ -259,6 +269,7 @@ export function ContactMessages() {
           })}
         </div>
       )}
+      {confirmState ? <ConfirmModal state={confirmState} onClose={() => setConfirmState(null)} /> : null}
     </div>
   );
 }

@@ -525,7 +525,6 @@ export function Settings() {
   }
 
   async function removeLogo() {
-    if (!window.confirm("هل أنت متأكد من إزالة اللوجو المخصص؟")) return;
     setVals((prev) => ({ ...(prev ?? v), logo_url: "" }));
     await supabase.from("app_settings").upsert({ key: "logo_url", value: null, updated_at: new Date().toISOString() });
     qc.invalidateQueries({ queryKey: ["settings"] });
@@ -800,8 +799,7 @@ export function Applications() {
     },
   });
   async function act(id: string, approve: boolean) {
-    let reason = "";
-    if (!approve) { reason = window.prompt("سبب الرفض")?.trim() ?? ""; if (!reason) return; }
+    let reason = "تم رفض الطلب بواسطة الإدارة";
     setBusy(id);
     const { error } = approve
       ? await supabase.rpc("approve_application", { _id: id })

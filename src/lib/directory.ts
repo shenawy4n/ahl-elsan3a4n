@@ -49,6 +49,29 @@ export type PublicProvider = Omit<ProviderWithRefs, "phone" | "secondary_phone" 
 
 export type ExperienceOption = { id: string; label: string; sort_order: number; status: string };
 
+export interface HomepageProvider extends PublicProvider {
+  average_rating?: number;
+  review_count?: number;
+}
+
+export interface HomepageData {
+  settings: Record<string, string>;
+  categories: Category[];
+  areas: Area[];
+  category_counts: Record<string, number>;
+  featured_providers: HomepageProvider[];
+  ratings: Record<string, { average: number; count: number }>;
+}
+
+export const homepageDataQuery = {
+  queryKey: ["homepage-data"],
+  staleTime: 1000 * 60 * 5, // 5 minutes fresh cache
+  queryFn: async (): Promise<HomepageData> => {
+    const { getHomepageDataServerFn } = await import("./directory.functions");
+    return await getHomepageDataServerFn();
+  },
+};
+
 /** Admin only (includes phone numbers). */
 export const PROVIDER_SELECT = "*, categories(id,name), areas(id,name), experience_options(id,label)";
 export const PUBLIC_PROVIDER_SELECT =
@@ -177,9 +200,14 @@ export function providersQuery(opts: {
       }
       q = q.order("is_premium", { ascending: false }).order("created_at", { ascending: false });
       if (opts.limit) q = q.limit(opts.limit);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as unknown as PublicProvider[];
+      try {
+        const { data, error } = await q;
+        if (!error && data) return data as unknown as PublicProvider[];
+      } catch {
+        // Fallback to server function
+      }
+      const { getProvidersServerFn } = await import("./directory.functions");
+      return (await getProvidersServerFn({ data: opts })) as unknown as PublicProvider[];
     },
   };
 }
@@ -213,13 +241,18 @@ export function providerQuery(id: string) {
     queryKey: ["provider", id],
     staleTime: 1000 * 60 * 3, // 3 minutes cache
     queryFn: async (): Promise<PublicProvider | null> => {
-      const { data, error } = await supabase
-        .from("providers")
-        .select(PUBLIC_PROVIDER_SELECT)
-        .eq("id", id)
-        .maybeSingle();
-      if (error) throw error;
-      return (data ?? null) as unknown as PublicProvider | null;
+      try {
+        const { data, error } = await supabase
+          .from("providers")
+          .select(PUBLIC_PROVIDER_SELECT)
+          .eq("id", id)
+          .maybeSingle();
+        if (!error && data) return data as unknown as PublicProvider | null;
+      } catch {
+        // Fallback to server function
+      }
+      const { getProviderDetailServerFn } = await import("./directory.functions");
+      return (await getProviderDetailServerFn({ data: id })) as unknown as PublicProvider | null;
     },
   };
 }

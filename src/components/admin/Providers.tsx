@@ -8,6 +8,8 @@ import { input, btnGhost, useAll, isFlagged } from "./shared";
 import { WorkingHoursEditor } from "./WorkingHoursEditor";
 import { ProviderPhotoUploader } from "./ProviderPhotoUploader";
 import { uploadProviderPhoto, deleteProviderPhotoFromStorage, validatePhotoFile } from "@/lib/provider-photos";
+import { ConfirmModal, type ConfirmState } from "./ConfirmModal";
+import { deleteProvidersAdminFn } from "@/lib/admin-actions.functions";
 
 type Form = {
   id?: string;
@@ -56,6 +58,7 @@ export function Providers({ editId, startNew, onClearEdit }: { editId?: string |
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [form, setForm] = useState<Form | null>(null);
   const [handled, setHandled] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
   const all = providers.data ?? [];
   const key = editId ? `e${editId}` : startNew ? "new" : null;
@@ -84,18 +87,70 @@ export function Providers({ editId, startNew, onClearEdit }: { editId?: string |
     toast.success("تم");
     refresh();
   }
-  async function remove(ids: string[]) {
-    if (!ids.length || !confirm(`حذف ${ids.length} عامل نهائياً؟`)) return;
-    const { error } = await supabase.from("providers").delete().in("id", ids);
-    if (error) { toast.error(error.message); return; }
-    setSel(new Set());
-    toast.success("اتحذف");
-    refresh();
+  function remove(ids: string[]) {
+    if (!ids.length) return;
+    setConfirmState({
+      open: true,
+      title: "تأكيد الحذف النهائي",
+      description: `هل أنت متأكد من حذف ${ids.length > 1 ? `${ids.length} صنايعي` : "هذا الصنايعي"} نهائياً؟ سيتم أيضاً حذف التقييمات والبلاغات المرتبطة به ولا يمكن التراجع بعد الحذف.`,
+      confirmLabel: "نعم، احذف نهائياً",
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          const res = await deleteProvidersAdminFn({ data: { ids } });
+          if (!res.ok) {
+            const { error: clientErr } = await supabase.from("providers").delete().in("id", ids);
+            if (clientErr) {
+              toast.error(res.message || clientErr.message || "حدث خطأ أثناء الحذف");
+              return;
+            }
+          }
+          setSel(new Set());
+          toast.success("تم الحذف بنجاح");
+          if (form) {
+            setForm(null);
+            onClearEdit?.();
+          }
+          refresh();
+        } catch (err: any) {
+          try {
+            const { error: clientErr } = await supabase.from("providers").delete().in("id", ids);
+            if (clientErr) {
+              toast.error(err.message || clientErr.message || "تعذر الحذف");
+              return;
+            }
+            setSel(new Set());
+            toast.success("تم الحذف بنجاح");
+            if (form) {
+              setForm(null);
+              onClearEdit?.();
+            }
+            refresh();
+          } catch {
+            toast.error(err.message || "تعذر الحذف");
+          }
+        }
+      },
+    });
   }
   const toggleSel = (id: string) => { const s = new Set(sel); if (s.has(id)) s.delete(id); else s.add(id); setSel(s); };
 
   const close = () => { setForm(null); onClearEdit?.(); refresh(); };
-  if (form) return <ProviderForm form={form} categories={categories.data ?? []} areas={areas.data ?? []} experience={experience.data ?? []} onDone={close} />;
+  if (form) {
+    return (
+      <>
+        <ProviderForm
+          form={form}
+          categories={categories.data ?? []}
+          areas={areas.data ?? []}
+          experience={experience.data ?? []}
+          onDone={close}
+          onDelete={(id) => remove([id])}
+        />
+        {confirmState ? <ConfirmModal state={confirmState} onClose={() => setConfirmState(null)} /> : null}
+      </>
+    );
+  }
 
   const ids = [...sel];
   return (
@@ -163,11 +218,26 @@ export function Providers({ editId, startNew, onClearEdit }: { editId?: string |
           </div>
         </div>
       ))}
+      {confirmState ? <ConfirmModal state={confirmState} onClose={() => setConfirmState(null)} /> : null}
     </div>
   );
 }
 
-function ProviderForm({ form, categories, areas, experience, onDone }: { form: Form; categories: Category[]; areas: Area[]; experience: ExperienceOption[]; onDone: () => void }) {
+function ProviderForm({
+  form,
+  categories,
+  areas,
+  experience,
+  onDone,
+  onDelete,
+}: {
+  form: Form;
+  categories: Category[];
+  areas: Area[];
+  experience: ExperienceOption[];
+  onDone: () => void;
+  onDelete?: (id: string) => void;
+}) {
   const [f, setF] = useState(form);
   const [busy, setBusy] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -347,15 +417,25 @@ function ProviderForm({ form, categories, areas, experience, onDone }: { form: F
         </div>
         <div className="flex items-center gap-2">
           {f.id && (
-            <a
-              href={`/provider/${f.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs font-bold text-primary hover:underline px-2 py-1"
-            >
-              <span>معاينة الملف</span>
-              <ExternalLink className="size-3.5" />
-            </a>
+            <>
+              <a
+                href={`/provider/${f.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs font-bold text-primary hover:underline px-2 py-1"
+              >
+                <span>معاينة الملف</span>
+                <ExternalLink className="size-3.5" />
+              </a>
+              <button
+                type="button"
+                onClick={() => onDelete?.(f.id!)}
+                className="flex items-center gap-1 rounded-xl border border-destructive/30 px-3 py-2 text-xs font-bold text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <Trash2 className="size-3.5" />
+                <span>حذف</span>
+              </button>
+            </>
           )}
           <button
             type="button"

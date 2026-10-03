@@ -94,10 +94,24 @@ export function EmergencyBadge() {
   );
 }
 
-export function ProviderCard({ provider }: { provider: ProviderWithRefs }) {
+export function ProviderCard({
+  provider,
+  ratingSummary,
+}: {
+  provider: ProviderWithRefs;
+  ratingSummary?: { average: number; count: number };
+}) {
   const premium = isPremiumActive(provider);
   const hoursData = parseWorkingHours(provider.working_hours);
   const openStatus = hoursData ? getOpenStatus(hoursData) : null;
+  const computedRating =
+    ratingSummary ??
+    ((provider as any).average_rating
+      ? {
+          average: Number((provider as any).average_rating),
+          count: Number((provider as any).review_count ?? 1),
+        }
+      : undefined);
 
   return (
     <article className={`surface p-4 ${premium ? "ring-2 ring-premium/40" : ""}`}>
@@ -133,7 +147,7 @@ export function ProviderCard({ provider }: { provider: ProviderWithRefs }) {
                 {openStatus.isOpen ? "مفتوح" : "مغلق"}
               </span>
             )}
-            <ProviderRatingBadge providerId={provider.id} />
+            <ProviderRatingBadge providerId={provider.id} summary={computedRating} />
           </div>
         </div>
         {hoursData?.workshop?.hasWorkshop ? (

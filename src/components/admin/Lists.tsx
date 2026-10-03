@@ -6,6 +6,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { CategoryIcon, ICON_NAMES } from "@/components/CategoryIcon";
 import { type Category, getCategoryUnit, settingsQuery } from "@/lib/directory";
 import { input, btn, useAll } from "./shared";
+import { ConfirmModal, type ConfirmState } from "./ConfirmModal";
+import {
+  deleteCategoryAdminFn,
+  deleteAreaAdminFn,
+  deleteExperienceAdminFn,
+} from "@/lib/admin-actions.functions";
 
 function IconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
@@ -27,6 +33,7 @@ export function Categories({ prefill, onPrefillUsed }: { prefill?: string | null
   const settings = useQuery(settingsQuery);
   const rows = categories.data ?? [];
   const [form, setForm] = useState<CatForm | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
   if (prefill && !form) {
     setForm({ name: prefill, icon: "Wrench", sort_order: rows.length + 1, status: "active", unit_title: "" });
@@ -67,22 +74,32 @@ export function Categories({ prefill, onPrefillUsed }: { prefill?: string | null
     qc.invalidateQueries();
   }
 
-  async function deleteCategory(c: Category) {
+  function deleteCategory(c: Category) {
     const cnt = count(c.id);
     if (cnt > 0) {
       toast.error(`لا يمكن حذف قسم "${c.name}" لوجود ${cnt} صنايعي مسجلين به. يمكنك إخفاؤه بدلاً من ذلك أو نقل الصنايعية.`);
       return;
     }
-    if (!window.confirm(`هل أنت متأكد من حذف قسم "${c.name}" نهائياً؟ لن يمكن التراجع.`)) return;
-    const { error } = await supabase.from("categories").delete().eq("id", c.id);
-    if (error) {
-      toast.error(error.message || "تعذر حذف القسم");
-      return;
-    }
-    // Also clean up custom unit setting if exists
-    await supabase.from("app_settings").delete().eq("key", `cat_unit_${c.id}`);
-    toast.success(`تم حذف قسم "${c.name}" بنجاح`);
-    qc.invalidateQueries();
+    setConfirmState({
+      open: true,
+      title: "تأكيد حذف القسم",
+      description: `هل أنت متأكد من حذف قسم "${c.name}" نهائياً؟ لن يمكن التراجع بعد الحذف.`,
+      confirmLabel: "نعم، احذف القسم",
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          const res = await deleteCategoryAdminFn({ data: { id: c.id } });
+          if (!res.ok) {
+            toast.error(res.message || "تعذر حذف القسم");
+            return;
+          }
+          toast.success(`تم حذف قسم "${c.name}" بنجاح`);
+          qc.invalidateQueries();
+        } catch (err: any) {
+          toast.error(err.message || "حدث خطأ أثناء الحذف");
+        }
+      },
+    });
   }
 
   async function move(c: Category, dir: -1 | 1) {
@@ -191,6 +208,7 @@ export function Categories({ prefill, onPrefillUsed }: { prefill?: string | null
           </div>
         );
       })}
+      {confirmState ? <ConfirmModal state={confirmState} onClose={() => setConfirmState(null)} /> : null}
     </div>
   );
 }
@@ -200,6 +218,8 @@ export function Areas() {
   const { areas, providers } = useAll();
   const rows = areas.data ?? [];
   const [name, setName] = useState("");
+  const [edit, setEdit] = useState<{ id: string; name: string } | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
   const count = (id: string) => (providers.data ?? []).filter((p) => p.area_id === id).length;
 
@@ -211,11 +231,11 @@ export function Areas() {
     qc.invalidateQueries();
   }
 
-  async function rename(id: string, old: string) {
-    const v = prompt("الاسم الجديد", old);
-    if (!v?.trim()) return;
-    const { error } = await supabase.from("areas").update({ name: v.trim() }).eq("id", id);
+  async function saveEdit() {
+    if (!edit?.name.trim()) return;
+    const { error } = await supabase.from("areas").update({ name: edit.name.trim() }).eq("id", edit.id);
     if (error) toast.error(error.message);
+    setEdit(null);
     qc.invalidateQueries();
   }
 
@@ -225,20 +245,32 @@ export function Areas() {
     qc.invalidateQueries();
   }
 
-  async function deleteArea(id: string, areaName: string) {
+  function deleteArea(id: string, areaName: string) {
     const cnt = count(id);
     if (cnt > 0) {
       toast.error(`لا يمكن حذف منطقة "${areaName}" لوجود ${cnt} صنايعي مسجلين بها. يمكنك إخفاؤها أو تعديل منطقة الصنايعية أولاً.`);
       return;
     }
-    if (!window.confirm(`هل أنت متأكد من حذف منطقة "${areaName}" نهائياً؟`)) return;
-    const { error } = await supabase.from("areas").delete().eq("id", id);
-    if (error) {
-      toast.error(error.message || "تعذر حذف المنطقة");
-      return;
-    }
-    toast.success(`تم حذف منطقة "${areaName}" بنجاح`);
-    qc.invalidateQueries();
+    setConfirmState({
+      open: true,
+      title: "تأكيد حذف المنطقة",
+      description: `هل أنت متأكد من حذف منطقة "${areaName}" نهائياً؟`,
+      confirmLabel: "نعم، احذف المنطقة",
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          const res = await deleteAreaAdminFn({ data: { id } });
+          if (!res.ok) {
+            toast.error(res.message || "تعذر حذف المنطقة");
+            return;
+          }
+          toast.success(`تم حذف منطقة "${areaName}" بنجاح`);
+          qc.invalidateQueries();
+        } catch (err: any) {
+          toast.error(err.message || "حدث خطأ أثناء الحذف");
+        }
+      },
+    });
   }
 
   return (
@@ -251,26 +283,46 @@ export function Areas() {
         const cnt = count(r.id);
         return (
           <div key={r.id} className="surface flex items-center justify-between p-3">
-            <div>
-              <p className="font-bold">{r.name} {r.status !== "active" ? <span className="text-xs text-destructive">(مخفي)</span> : null}</p>
-              <p className="text-xs text-muted-foreground">{cnt} صنايعي مسجل</p>
-            </div>
-            <div className="flex gap-1">
-              <button aria-label="تعديل" title="تعديل" onClick={() => rename(r.id, r.name)} className="rounded-lg p-2 hover:bg-secondary"><Pencil className="size-5" /></button>
-              <button aria-label="إخفاء/إظهار" title="إخفاء/إظهار" onClick={() => toggle(r.id, r.status)} className="rounded-lg p-2 hover:bg-secondary">{r.status === "active" ? <EyeOff className="size-5" /> : <Eye className="size-5 text-muted-foreground" />}
-              </button>
-              <button
-                aria-label="حذف"
-                title={cnt > 0 ? "لا يمكن الحذف لوجود صنايعية" : "حذف المنطقة"}
-                onClick={() => deleteArea(r.id, r.name)}
-                className="rounded-lg p-2 text-destructive hover:bg-destructive/10"
-              >
-                <Trash2 className="size-5" />
-              </button>
-            </div>
+            {edit?.id === r.id ? (
+              <div className="flex flex-1 items-center gap-2">
+                <input
+                  value={edit.name}
+                  onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+                  className={input}
+                  autoFocus
+                />
+                <button aria-label="حفظ" onClick={saveEdit} className="rounded-lg p-2 text-primary hover:bg-secondary">
+                  <Check className="size-5" />
+                </button>
+                <button aria-label="إلغاء" onClick={() => setEdit(null)} className="rounded-lg p-2 hover:bg-secondary">
+                  <X className="size-5" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <p className="font-bold">{r.name} {r.status !== "active" ? <span className="text-xs text-destructive">(مخفي)</span> : null}</p>
+                  <p className="text-xs text-muted-foreground">{cnt} صنايعي مسجل</p>
+                </div>
+                <div className="flex gap-1">
+                  <button aria-label="تعديل" title="تعديل" onClick={() => setEdit({ id: r.id, name: r.name })} className="rounded-lg p-2 hover:bg-secondary"><Pencil className="size-5" /></button>
+                  <button aria-label="إخفاء/إظهار" title="إخفاء/إظهار" onClick={() => toggle(r.id, r.status)} className="rounded-lg p-2 hover:bg-secondary">{r.status === "active" ? <EyeOff className="size-5" /> : <Eye className="size-5 text-muted-foreground" />}
+                  </button>
+                  <button
+                    aria-label="حذف"
+                    title={cnt > 0 ? "لا يمكن الحذف لوجود صنايعية" : "حذف المنطقة"}
+                    onClick={() => deleteArea(r.id, r.name)}
+                    className="rounded-lg p-2 text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="size-5" />
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         );
       })}
+      {confirmState ? <ConfirmModal state={confirmState} onClose={() => setConfirmState(null)} /> : null}
     </div>
   );
 }
@@ -281,6 +333,7 @@ export function ExperienceManager() {
   const rows = experience.data ?? [];
   const [label, setLabel] = useState("");
   const [edit, setEdit] = useState<{ id: string; label: string } | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const done = () => qc.invalidateQueries();
 
   async function add() {
@@ -304,11 +357,27 @@ export function ExperienceManager() {
     await supabase.from("experience_options").update({ sort_order: a.sort_order === b.sort_order ? a.sort_order + dir : a.sort_order }).eq("id", b.id);
     done();
   }
-  async function del(id: string) {
-    if (!confirm("حذف الاختيار ده؟ الصنايعية المرتبطين بيه هيبقوا بدون خبرة محددة.")) return;
-    const { error } = await supabase.from("experience_options").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    done();
+  function del(id: string, optLabel: string) {
+    setConfirmState({
+      open: true,
+      title: "تأكيد حذف خيار الخبرة",
+      description: `هل أنت متأكد من حذف خيار "${optLabel}"؟ الصنايعية المرتبطين بهذا الخيار ستصبح خبرتهم غير محددة دون حذف بياناتهم.`,
+      confirmLabel: "نعم، احذف",
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          const res = await deleteExperienceAdminFn({ data: { id } });
+          if (!res.ok) {
+            toast.error(res.message || "تعذر حذف خيار الخبرة");
+            return;
+          }
+          toast.success("تم الحذف بنجاح");
+          done();
+        } catch (err: any) {
+          toast.error(err.message || "حدث خطأ أثناء الحذف");
+        }
+      },
+    });
   }
   async function toggle(id: string, status: string) {
     await supabase.from("experience_options").update({ status: status === "active" ? "hidden" : "active" }).eq("id", id);
@@ -336,11 +405,12 @@ export function ExperienceManager() {
               <button aria-label="لأسفل" disabled={i === rows.length - 1} onClick={() => move(i, 1)} className="rounded-lg p-2 disabled:opacity-30"><ArrowDown className="size-4" /></button>
               <button aria-label="تعديل" onClick={() => setEdit({ id: r.id, label: r.label })} className="rounded-lg p-2"><Pencil className="size-4" /></button>
               <button aria-label="تفعيل/إلغاء" onClick={() => toggle(r.id, r.status)} className="rounded-lg p-2">{r.status === "active" ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>
-              <button aria-label="حذف" onClick={() => del(r.id)} className="rounded-lg p-2 text-destructive"><Trash2 className="size-4" /></button>
+              <button aria-label="حذف" onClick={() => del(r.id, r.label)} className="rounded-lg p-2 text-destructive"><Trash2 className="size-4" /></button>
             </>
           )}
         </div>
       ))}
+      {confirmState ? <ConfirmModal state={confirmState} onClose={() => setConfirmState(null)} /> : null}
     </div>
   );
 }

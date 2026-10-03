@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { adminListReviews, adminModerateReview } from "@/lib/reviews.functions";
 import type { ReviewRecord } from "@/lib/reviews.server";
 import { useAll, btn, btnGhost, input } from "./shared";
+import { ConfirmModal, type ConfirmState } from "./ConfirmModal";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 
@@ -13,6 +14,7 @@ export function AdminReviews() {
   const [filter, setFilter] = useState<StatusFilter>("pending");
   const [search, setSearch] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
   const { providers } = useAll();
   const provMap = useMemo(() => {
@@ -50,10 +52,7 @@ export function AdminReviews() {
     });
   }, [reviews, filter, search, provMap]);
 
-  async function handleModerate(reviewId: string, action: "approve" | "reject" | "delete") {
-    if (action === "delete") {
-      if (!window.confirm("هل أنت متأكد من حذف هذا التقييم نهائياً؟")) return;
-    }
+  async function executeModerate(reviewId: string, action: "approve" | "reject" | "delete") {
     setBusyId(reviewId);
     try {
       const res = await adminModerateReview({
@@ -74,11 +73,28 @@ export function AdminReviews() {
       } else {
         toast.error("حدث خطأ أثناء تنفيذ الإجراء");
       }
-    } catch (e) {
+    } catch {
       toast.error("حدث خطأ في الاتصال");
     } finally {
       setBusyId(null);
     }
+  }
+
+  function handleModerate(reviewId: string, action: "approve" | "reject" | "delete") {
+    if (action === "delete") {
+      setConfirmState({
+        open: true,
+        title: "تأكيد حذف التقييم",
+        description: "هل أنت متأكد من حذف هذا التقييم نهائياً؟ لا يمكن التراجع عن الحذف بعد تنفيذه.",
+        confirmLabel: "نعم، احذف التقييم",
+        destructive: true,
+        onConfirm: async () => {
+          await executeModerate(reviewId, "delete");
+        },
+      });
+      return;
+    }
+    executeModerate(reviewId, action);
   }
 
   const FILTERS: [StatusFilter, string, number][] = [
@@ -248,6 +264,7 @@ export function AdminReviews() {
           })}
         </div>
       )}
+      {confirmState ? <ConfirmModal state={confirmState} onClose={() => setConfirmState(null)} /> : null}
     </div>
   );
 }

@@ -1,14 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { Search, MapPin, Lightbulb, UserPlus, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { submitPublicForm, publicFormError } from "@/lib/public-forms.functions";
 import {
   categoriesQuery,
   areasQuery,
-  providersQuery,
   categoryCountsQuery,
+  settingsQuery,
+  homepageDataQuery,
   getCategoryUnit,
 } from "@/lib/directory";
 import { ProviderCard } from "@/components/ProviderCard";
@@ -37,16 +38,32 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [areaId, setAreaId] = useState("");
   const [topNominateOpen, setTopNominateOpen] = useState(false);
 
-  const categories = useQuery(categoriesQuery);
-  const areas = useQuery(areasQuery);
-  const featured = useQuery(
-    providersQuery({ premiumOnly: true, areaId: areaId || undefined, limit: 6 })
+  // Consolidated single query for homepage data
+  const { data: homeData, isLoading } = useQuery(homepageDataQuery);
+
+  // Synchronize React Query cache for subcomponents (SiteHeader, NominateForm, etc.)
+  useEffect(() => {
+    if (homeData) {
+      queryClient.setQueryData(categoriesQuery.queryKey, homeData.categories);
+      queryClient.setQueryData(areasQuery.queryKey, homeData.areas);
+      queryClient.setQueryData(categoryCountsQuery.queryKey, homeData.category_counts);
+      queryClient.setQueryData(settingsQuery.queryKey, homeData.settings);
+    }
+  }, [homeData, queryClient]);
+
+  const categories = homeData?.categories ?? [];
+  const areas = homeData?.areas ?? [];
+  const catCounts = homeData?.category_counts ?? {};
+  const ratings = homeData?.ratings ?? {};
+
+  const featured = (homeData?.featured_providers ?? []).filter((p) =>
+    areaId ? p.area_id === areaId : true
   );
-  const catCounts = useQuery(categoryCountsQuery);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +103,7 @@ function Home() {
                 suppressHydrationWarning
               >
                 <option value="">كل القرى والمناطق</option>
-                {(areas.data ?? []).map((a) => (
+                {areas.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
                   </option>
@@ -158,8 +175,8 @@ function Home() {
                   </button>
                 </div>
                 <NominateForm
-                  categories={categories.data ?? []}
-                  areas={areas.data ?? []}
+                  categories={categories}
+                  areas={areas}
                   onSuccess={() => setTopNominateOpen(false)}
                   onCancel={() => setTopNominateOpen(false)}
                 />
@@ -173,11 +190,11 @@ function Home() {
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg sm:text-xl font-extrabold text-foreground">الأقسام والخدمات</h2>
             <span className="text-xs font-bold text-muted-foreground">
-              {categories.data?.length ?? 0} خدمة متوفرة
+              {categories.length} خدمة متوفرة
             </span>
           </div>
 
-          {categories.isLoading ? (
+          {isLoading ? (
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 sm:gap-2.5">
               {Array.from({ length: 12 }).map((_, i) => (
                 <div key={i} className="surface h-20 animate-pulse rounded-2xl" />
@@ -185,8 +202,8 @@ function Home() {
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 sm:gap-2.5">
-              {(categories.data ?? []).map((c) => {
-                const count = catCounts.data?.[c.id] ?? 0;
+              {categories.map((c) => {
+                const count = catCounts[c.id] ?? 0;
                 const unit = getCategoryUnit(c.name, c.unit_title);
                 return (
                   <Link
@@ -219,7 +236,7 @@ function Home() {
         </section>
 
         {/* Featured Providers Section */}
-        {(featured.data?.length ?? 0) > 0 ? (
+        {featured.length > 0 ? (
           <section className="pt-8">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg sm:text-xl font-extrabold text-foreground">صنايعية مميزين وموثقين</h2>
@@ -228,8 +245,8 @@ function Home() {
               </Link>
             </div>
             <div className="space-y-3">
-              {featured.data!.map((p) => (
-                <ProviderCard key={p.id} provider={p} />
+              {featured.map((p) => (
+                <ProviderCard key={p.id} provider={p} ratingSummary={ratings[p.id]} />
               ))}
             </div>
           </section>
@@ -237,7 +254,7 @@ function Home() {
 
         {/* Bottom Helpers */}
         <SuggestService />
-        <NominateProviderCard categories={categories.data ?? []} areas={areas.data ?? []} />
+        <NominateProviderCard categories={categories} areas={areas} />
       </main>
 
       <SiteFooter />

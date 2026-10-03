@@ -5,16 +5,10 @@ import type { Database } from './types';
 
 function createSupabaseAdminClient() {
   let SUPABASE_URL = (process.env['SUPABASE_URL'] || process.env['VITE_SUPABASE_URL'] || '').replace(/^["']|["']$/g, '');
-  let SUPABASE_SERVICE_ROLE_KEY = (process.env['SUPABASE_SERVICE_ROLE_KEY'] || '').replace(/^["']|["']$/g, '');
-
-  // If SUPABASE_SERVICE_ROLE_KEY is a Supabase JWT (starts with eyJ), ensure we connect directly to supabase.co
-  if (SUPABASE_SERVICE_ROLE_KEY.startsWith('eyJ')) {
-    if (SUPABASE_URL.includes('lovable.cloud')) {
-      SUPABASE_URL = 'https://ahuelbhmosyrozlaxbgb.supabase.co';
-    }
-  } else if (!SUPABASE_SERVICE_ROLE_KEY) {
-    SUPABASE_SERVICE_ROLE_KEY = (process.env['SUPABASE_PUBLISHABLE_KEY'] || process.env['VITE_SUPABASE_PUBLISHABLE_KEY'] || '').replace(/^["']|["']$/g, '');
+  if (!SUPABASE_URL || SUPABASE_URL.includes('lovable.cloud')) {
+    SUPABASE_URL = 'https://ahuelbhmosyrozlaxbgb.supabase.co';
   }
+  const SUPABASE_SERVICE_ROLE_KEY = (process.env['SUPABASE_SERVICE_ROLE_KEY'] || process.env['SUPABASE_SERVICE_KEY'] || '').replace(/^["']|["']$/g, '');
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     const missing = [
