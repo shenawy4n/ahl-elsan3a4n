@@ -120,6 +120,55 @@ export const getHomepageDataServerFn = createServerFn({ method: "GET" }).handler
   }
 );
 
+export const getCategoriesServerFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<Category[]> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("categories")
+      .select("id,name,icon,sort_order,status")
+      .eq("status", "active")
+      .order("sort_order");
+    return (data ?? []) as Category[];
+  }
+);
+
+export const getAreasServerFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<Area[]> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("areas")
+      .select("id,name,status")
+      .eq("status", "active")
+      .order("name");
+    return (data ?? []) as Area[];
+  }
+);
+
+export const getSettingsServerFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<Record<string, string>> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin.from("app_settings").select("key,value");
+    return Object.fromEntries(
+      (data ?? []).map((r: { key: string; value: string }) => [r.key, r.value])
+    );
+  }
+);
+
+export const getCategoryCountsServerFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<Record<string, number>> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    try {
+      const { data, error } = await (supabaseAdmin.rpc as any)("get_homepage_data");
+      if (!error && data?.category_counts) {
+        return data.category_counts as Record<string, number>;
+      }
+    } catch {
+      // Fallback
+    }
+    return {};
+  }
+);
+
 export const getProvidersServerFn = createServerFn({ method: "POST" })
   .validator((d: {
     categoryId?: string;
@@ -128,12 +177,13 @@ export const getProvidersServerFn = createServerFn({ method: "POST" })
     search?: string;
     premiumOnly?: boolean;
     limit?: number;
+    offset?: number;
   }) => d)
   .handler(async ({ data: opts }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { arabicPattern } = await import("./directory");
+    const { arabicPattern, CARD_PROVIDER_SELECT } = await import("./directory");
 
-    let q = supabaseAdmin.from("providers").select(PUBLIC_PROVIDER_SELECT).eq("status", "active");
+    let q = supabaseAdmin.from("providers").select(CARD_PROVIDER_SELECT).eq("status", "active");
     if (opts.categoryId) q = q.eq("category_id", opts.categoryId);
     if (opts.areaId) q = q.eq("area_id", opts.areaId);
     if (opts.experienceId) q = q.eq("experience_id", opts.experienceId);
@@ -145,14 +195,19 @@ export const getProvidersServerFn = createServerFn({ method: "POST" })
         supabaseAdmin.from("areas").select("id").ilike("name", `%${s}%`),
       ]);
       const parts = [`name.ilike.%${s}%`, `description.ilike.%${s}%`, `services.ilike.%${s}%`];
-      const cIds = (cats.data ?? []).map((c) => c.id);
-      const aIds = (ars.data ?? []).map((a) => a.id);
+      const cIds = (cats.data ?? []).map((c: any) => c.id);
+      const aIds = (ars.data ?? []).map((a: any) => a.id);
       if (cIds.length) parts.push(`category_id.in.(${cIds.join(",")})`);
       if (aIds.length) parts.push(`area_id.in.(${aIds.join(",")})`);
       q = q.or(parts.join(","));
     }
     q = q.order("is_premium", { ascending: false }).order("created_at", { ascending: false });
-    if (opts.limit) q = q.limit(opts.limit);
+    const limit = opts.limit ?? 20;
+    if (opts.offset) {
+      q = q.range(opts.offset, opts.offset + limit - 1);
+    } else {
+      q = q.limit(limit);
+    }
     const { data } = await q;
     return (data ?? []) as any[];
   });

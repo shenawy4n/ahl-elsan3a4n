@@ -107,7 +107,7 @@ export function ProviderPhotoUploader({
           <div className="flex-1 grid gap-1.5 text-center sm:text-start">
             {selectedFile ? (
               <>
-                <p className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center justify-center sm:justify-start gap-1">
+                <p className="text-xs font-black text-success flex items-center justify-center sm:justify-start gap-1">
                   <CheckCircle2 className="size-3.5" /> صورة جديدة مختارة وجاهزة للرفع
                 </p>
                 <p className="text-xs font-bold text-foreground truncate max-w-xs" dir="ltr">

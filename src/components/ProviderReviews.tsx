@@ -108,7 +108,7 @@ export function ProviderReviews({ providerId, providerName }: ProviderReviewsPro
             <div className="text-end">
               <div className="flex items-center gap-1 font-black text-2xl text-foreground" dir="ltr">
                 <span>{summary.average.toFixed(1)}</span>
-                <Star className="size-6 fill-amber-400 text-amber-400 inline" />
+                <Star className="size-6 fill-premium text-premium inline" />
               </div>
               <p className="text-xs font-semibold text-muted-foreground">
                 {summary.count} {summary.count === 1 ? "تقييم" : summary.count === 2 ? "تقييمين" : summary.count <= 10 ? "تقييمات" : "تقييم"}
@@ -124,8 +124,8 @@ export function ProviderReviews({ providerId, providerName }: ProviderReviewsPro
 
       {/* Success notification if just submitted */}
       {submittedSuccess && (
-        <div className="my-4 flex items-start gap-3 rounded-xl bg-emerald-500/10 p-3.5 text-sm text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/20">
-          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <div className="my-4 flex items-start gap-3 rounded-xl bg-success/10 p-3.5 text-sm text-success ring-1 ring-success/20">
+          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" />
           <div>
             <p className="font-extrabold">تم استلام تقييمك بنجاح!</p>
             <p className="text-xs opacity-90 mt-0.5">
@@ -197,7 +197,7 @@ export function ProviderReviews({ providerId, providerName }: ProviderReviewsPro
                       <Star
                         className={`size-7 transition-colors ${
                           star <= activeRating
-                            ? "fill-amber-400 text-amber-400"
+                            ? "fill-premium text-premium"
                             : "text-muted-foreground/30"
                         }`}
                       />
@@ -322,7 +322,7 @@ export function ProviderReviews({ providerId, providerName }: ProviderReviewsPro
                         key={star}
                         className={`size-4 ${
                           star <= rev.rating
-                            ? "fill-amber-400 text-amber-400"
+                            ? "fill-premium text-premium"
                             : "text-muted-foreground/30"
                         }`}
                       />

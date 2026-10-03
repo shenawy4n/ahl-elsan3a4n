@@ -120,8 +120,8 @@ export function WorkingHoursEditor({ value, onChange }: WorkingHoursEditorProps)
 
       {/* Legacy text alert if migrating old plain text */}
       {rawLegacyText && (
-        <div className="flex items-start gap-2.5 rounded-lg bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200 ring-1 ring-amber-500/20">
-          <Clock className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="flex items-start gap-2.5 rounded-lg bg-warning/10 p-3 text-xs text-foreground ring-1 ring-warning/20">
+          <Clock className="mt-0.5 size-4 shrink-0 text-warning" />
           <div>
             <span className="font-extrabold">المواعيد السابقة المسجلة كنص: </span>
             <span className="font-semibold">"{rawLegacyText}"</span>
@@ -142,7 +142,7 @@ export function WorkingHoursEditor({ value, onChange }: WorkingHoursEditorProps)
         />
         <div className="grid gap-0.5">
           <span className="flex items-center gap-1.5 text-sm font-extrabold text-foreground">
-            <Zap className="size-4 text-amber-500" /> متاح طوارئ ٢٤ ساعة (Emergency 24/7)
+            <Zap className="size-4 text-warning" /> متاح طوارئ ٢٤ ساعة (Emergency 24/7)
           </span>
           <span className="text-xs text-muted-foreground">
             تفعيل هذه الخاصية يُظهر شارة طوارئ مميزة في ملف الصنايعي وتعتبر مواعيده مفتوحة دائماً.
@@ -321,7 +321,7 @@ export function WorkingHoursEditor({ value, onChange }: WorkingHoursEditorProps)
                       {/* Overnight badge */}
                       {overnight && (
                         <span
-                          className="inline-flex items-center gap-0.5 rounded bg-amber-500/10 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/20"
+                          className="inline-flex items-center gap-0.5 rounded bg-warning/10 px-2 py-0.5 text-[11px] font-bold text-warning ring-1 ring-warning/20"
                           title="تمتد نوبة العمل حتى صباح اليوم التالي"
                         >
                           <Moon className="size-3" /> ليلية

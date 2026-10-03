@@ -117,8 +117,8 @@ function ContactPage() {
         <main className="mx-auto w-full max-w-xl px-4 py-8">
           {sentSuccess ? (
             /* Success State */
-            <div className="surface p-6 sm:p-8 rounded-3xl border border-emerald-500/30 text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
-              <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div className="surface p-6 sm:p-8 rounded-3xl border border-success/30 text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
+              <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-success/10 text-success">
                 <CheckCircle2 className="size-9" />
               </div>
 

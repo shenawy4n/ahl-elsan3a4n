@@ -125,7 +125,7 @@ export function AdminReviews() {
                   filter === f
                     ? "bg-primary-foreground/20 text-primary-foreground"
                     : f === "pending" && count > 0
-                    ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 font-extrabold"
+                    ? "bg-warning/20 text-warning font-extrabold"
                     : "bg-muted text-muted-foreground"
                 }`}
               >
@@ -167,9 +167,9 @@ export function AdminReviews() {
                 key={r.id}
                 className={`surface grid gap-3 p-4 transition-all ${
                   r.status === "pending"
-                    ? "border-r-4 border-r-amber-500"
+                    ? "border-r-4 border-r-warning"
                     : r.status === "approved"
-                    ? "border-r-4 border-r-emerald-500"
+                    ? "border-r-4 border-r-success"
                     : "border-r-4 border-r-destructive opacity-80"
                 }`}
               >
@@ -181,9 +181,9 @@ export function AdminReviews() {
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-bold ${
                           r.status === "pending"
-                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                            ? "bg-warning/15 text-warning"
                             : r.status === "approved"
-                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                            ? "bg-success/15 text-success"
                             : "bg-destructive/15 text-destructive"
                         }`}
                       >
@@ -214,7 +214,7 @@ export function AdminReviews() {
                           key={star}
                           className={`size-3.5 ${
                             star <= r.rating
-                              ? "fill-amber-400 text-amber-400"
+                              ? "fill-premium text-premium"
                               : "text-muted-foreground/30"
                           }`}
                         />
@@ -235,7 +235,7 @@ export function AdminReviews() {
                       <button
                         disabled={isBusy}
                         onClick={() => handleModerate(r.id, "approve")}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-success px-3 py-1.5 text-xs font-bold text-success-foreground hover:brightness-105 disabled:opacity-50"
                       >
                         <CheckCircle className="size-3.5" /> اعتماد ونشر
                       </button>
@@ -244,7 +244,7 @@ export function AdminReviews() {
                       <button
                         disabled={isBusy}
                         onClick={() => handleModerate(r.id, "reject")}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600/90 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-warning px-3 py-1.5 text-xs font-bold text-warning-foreground hover:brightness-105 disabled:opacity-50"
                       >
                         <XCircle className="size-3.5" /> رفض
                       </button>

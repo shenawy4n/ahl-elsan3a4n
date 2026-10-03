@@ -8,6 +8,7 @@ import {
   categoriesQuery,
   experienceQuery,
   providersQuery,
+  settingsQuery,
   getCategoryUnit,
 } from "@/lib/directory";
 import { ProviderCard } from "@/components/ProviderCard";
@@ -43,6 +44,23 @@ function CategoryErrorComponent() {
 }
 
 export const Route = createFileRoute("/category/$id")({
+  loader: async ({ context, params }) => {
+    try {
+      await Promise.all([
+        context.queryClient.ensureQueryData(categoriesQuery),
+        context.queryClient.ensureQueryData(areasQuery),
+        context.queryClient.ensureQueryData(settingsQuery),
+        context.queryClient.ensureQueryData(
+          providersQuery({
+            categoryId: params.id || undefined,
+            limit: 20,
+          })
+        ),
+      ]);
+    } catch {
+      // Fall through to component
+    }
+  },
   head: () => ({
     meta: [
       { title: "خدمة — أهل الصنعة" },
@@ -63,6 +81,8 @@ function CategoryPage() {
   const [area, setArea] = useState("");
   const [exp, setExp] = useState("");
   const [filterMode, setFilterMode] = useState<AvailabilityFilterMode>("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   // Inlined safe debounce
   useEffect(() => {
@@ -71,6 +91,11 @@ function CategoryPage() {
     }, 350);
     return () => clearTimeout(timer);
   }, [q]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, area, exp]);
 
   const experience = useQuery(experienceQuery);
   const categories = useQuery(categoriesQuery);
@@ -88,6 +113,7 @@ function CategoryPage() {
       search: debouncedQ || undefined,
       areaId: area || undefined,
       experienceId: exp || undefined,
+      limit: page * PAGE_SIZE,
     })
   );
 
@@ -218,11 +244,26 @@ function CategoryPage() {
             areas={areas.data ?? []}
           />
         ) : (
-          <div className="space-y-3">
-            {filteredProviders.map((p) => (
-              <ProviderCard key={p.id} provider={p} />
-            ))}
-          </div>
+          <>
+            <div className="space-y-3">
+              {filteredProviders.map((p) => (
+                <ProviderCard key={p.id} provider={p} />
+              ))}
+            </div>
+
+            {results.data && results.data.length >= page * PAGE_SIZE && (
+              <div className="pt-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={results.isFetching}
+                  className="min-h-[48px] rounded-2xl border border-border bg-card px-6 py-2.5 text-base font-extrabold text-foreground hover:bg-secondary active:scale-[0.98] transition-all shadow-xs disabled:opacity-60"
+                >
+                  {results.isFetching ? "جاري التحميل..." : "عرض المزيد من الصنايعية"}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 

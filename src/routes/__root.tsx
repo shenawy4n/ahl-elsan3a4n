@@ -74,10 +74,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "أهل الصنعة" },
-      { name: "description", content: "دليل صنايعية وخدمات القرية" },
+      {
+        name: "description",
+        content:
+          "دليل بسيط لأرقام الخدمات والصنايعية في القرية: كهربائي، سباك، نجار وغيرهم. اتصل أو كلّمهم على واتساب مباشرة.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "theme-color", content: "#16a34a" },
+      { name: "theme-color", content: "#1B6447" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "أهل الصنعة" },

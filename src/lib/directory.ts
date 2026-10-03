@@ -77,6 +77,10 @@ export const PROVIDER_SELECT = "*, categories(id,name), areas(id,name), experien
 export const PUBLIC_PROVIDER_SELECT =
   "id,name,category_id,area_id,description,services,price_description,working_hours,photo_url,status,is_premium,premium_expires_at,experience_id,is_verified,has_whatsapp,created_at,updated_at, categories(id,name), areas(id,name), experience_options(id,label)";
 
+/** Lightweight select for cards (home featured, search results, category pages). */
+export const CARD_PROVIDER_SELECT =
+  "id,name,category_id,area_id,photo_url,status,is_premium,premium_expires_at,experience_id,is_verified,has_whatsapp,is_emergency_24h,has_workshop,workshop_name,workshop_address,working_hours,categories(id,name),areas(id,name),experience_options(id,label)";
+
 export function isPremiumActive(p: Pick<Provider, "is_premium" | "premium_expires_at">) {
   if (!p.is_premium) return false;
   if (!p.premium_expires_at) return true;
@@ -85,48 +89,28 @@ export function isPremiumActive(p: Pick<Provider, "is_premium" | "premium_expire
 
 export const categoriesQuery = {
   queryKey: ["categories"],
-  staleTime: 1000 * 60 * 10, // 10 minutes cache
+  staleTime: 1000 * 60 * 30, // 30 minutes cache
   queryFn: async (): Promise<Category[]> => {
-    const { data, error } = await supabase
-      .from("categories")
-      .select("id,name,icon,sort_order,status")
-      .eq("status", "active")
-      .order("sort_order");
-    if (error) throw error;
-    return (data ?? []) as Category[];
+    const { getCategoriesServerFn } = await import("./directory.functions");
+    return await getCategoriesServerFn();
   },
 };
 
 export const areasQuery = {
   queryKey: ["areas"],
-  staleTime: 1000 * 60 * 10, // 10 minutes cache
+  staleTime: 1000 * 60 * 30, // 30 minutes cache
   queryFn: async (): Promise<Area[]> => {
-    const { data, error } = await supabase
-      .from("areas")
-      .select("id,name,status")
-      .eq("status", "active")
-      .order("name");
-    if (error) throw error;
-    return (data ?? []) as Area[];
+    const { getAreasServerFn } = await import("./directory.functions");
+    return await getAreasServerFn();
   },
 };
 
 export const categoryCountsQuery = {
   queryKey: ["category-provider-counts"],
-  staleTime: 1000 * 60 * 5, // 5 minutes cache
+  staleTime: 1000 * 60 * 30, // 30 minutes cache
   queryFn: async (): Promise<Record<string, number>> => {
-    const { data, error } = await supabase
-      .from("providers")
-      .select("category_id")
-      .eq("status", "active");
-    if (error) return {};
-    const map: Record<string, number> = {};
-    for (const row of (data ?? []) as { category_id: string }[]) {
-      if (row.category_id) {
-        map[row.category_id] = (map[row.category_id] || 0) + 1;
-      }
-    }
-    return map;
+    const { getCategoryCountsServerFn } = await import("./directory.functions");
+    return await getCategoryCountsServerFn();
   },
 };
 
@@ -174,38 +158,13 @@ export function providersQuery(opts: {
   search?: string | undefined;
   premiumOnly?: boolean | undefined;
   limit?: number | undefined;
+  offset?: number | undefined;
   includeHidden?: boolean | undefined;
 }) {
   return {
     queryKey: ["providers", opts],
-    staleTime: 1000 * 60 * 3, // 3 minutes cache
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
     queryFn: async (): Promise<PublicProvider[]> => {
-      let q = supabase.from("providers").select(PUBLIC_PROVIDER_SELECT).eq("status", "active");
-      if (opts.categoryId) q = q.eq("category_id", opts.categoryId);
-      if (opts.areaId) q = q.eq("area_id", opts.areaId);
-      if (opts.experienceId) q = q.eq("experience_id", opts.experienceId);
-      if (opts.premiumOnly) q = q.eq("is_premium", true);
-      if (opts.search && opts.search.trim()) {
-        const s = arabicPattern(opts.search);
-        const [cats, ars] = await Promise.all([
-          supabase.from("categories").select("id").ilike("name", `%${s}%`),
-          supabase.from("areas").select("id").ilike("name", `%${s}%`),
-        ]);
-        const parts = [`name.ilike.%${s}%`, `description.ilike.%${s}%`, `services.ilike.%${s}%`];
-        const cIds = (cats.data ?? []).map((c) => c.id);
-        const aIds = (ars.data ?? []).map((a) => a.id);
-        if (cIds.length) parts.push(`category_id.in.(${cIds.join(",")})`);
-        if (aIds.length) parts.push(`area_id.in.(${aIds.join(",")})`);
-        q = q.or(parts.join(","));
-      }
-      q = q.order("is_premium", { ascending: false }).order("created_at", { ascending: false });
-      if (opts.limit) q = q.limit(opts.limit);
-      try {
-        const { data, error } = await q;
-        if (!error && data) return data as unknown as PublicProvider[];
-      } catch {
-        // Fallback to server function
-      }
       const { getProvidersServerFn } = await import("./directory.functions");
       return (await getProvidersServerFn({ data: opts })) as unknown as PublicProvider[];
     },
@@ -214,7 +173,7 @@ export function providersQuery(opts: {
 
 export const experienceQuery = {
   queryKey: ["experience"],
-  staleTime: 1000 * 60 * 10, // 10 minutes cache
+  staleTime: 1000 * 60 * 30, // 30 minutes cache
   queryFn: async (): Promise<ExperienceOption[]> => {
     const { data, error } = await supabase
       .from("experience_options")
@@ -229,10 +188,10 @@ export const experienceQuery = {
 export type AppSettings = Record<string, string | null>;
 export const settingsQuery = {
   queryKey: ["settings"],
-  staleTime: 1000 * 60 * 5, // 5 minutes cache
+  staleTime: 1000 * 60 * 30, // 30 minutes cache
   queryFn: async (): Promise<AppSettings> => {
-    const { data } = await supabase.from("app_settings").select("key,value");
-    return Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
+    const { getSettingsServerFn } = await import("./directory.functions");
+    return await getSettingsServerFn();
   },
 };
 

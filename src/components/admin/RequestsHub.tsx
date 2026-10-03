@@ -84,28 +84,28 @@ export function RequestsHub({
       label: "طلبات انضمام العمال",
       icon: UserCheck,
       count: appsCount,
-      color: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+      color: "bg-success/15 text-success border-success/30",
     },
     {
       id: "messages" as const,
       label: "رسائل تواصل معنا",
       icon: MessageSquare,
       count: messagesCount,
-      color: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",
+      color: "bg-info/15 text-info border-info/30",
     },
     {
       id: "reports" as const,
       label: "البلاغات والشكاوى",
       icon: AlertTriangle,
       count: reportsCount,
-      color: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
+      color: "bg-warning/15 text-warning border-warning/30",
     },
     {
       id: "suggestions" as const,
       label: "اقتراحات الخدمات",
       icon: Lightbulb,
       count: suggestionsCount,
-      color: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
+      color: "bg-primary/15 text-primary border-primary/30",
     },
   ];
 

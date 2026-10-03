@@ -40,12 +40,12 @@ export function WorkingHoursView({ workingHoursRaw }: WorkingHoursViewProps) {
 
         {/* Real-time Status Badge */}
         {status.badgeType === "emergency" ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-3 py-1 text-xs font-black text-amber-700 dark:text-amber-400 ring-1 ring-amber-500/30">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 px-3 py-1 text-xs font-black text-warning ring-1 ring-warning/30">
             <Zap className="size-3.5 fill-current" /> متاح طوارئ ٢٤ ساعة
           </span>
         ) : status.isOpen === true ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-black text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/30">
-            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-xs font-black text-success ring-1 ring-success/30">
+            <span className="size-2 rounded-full bg-success" />
             مفتوح الآن
           </span>
         ) : status.isOpen === false ? (
@@ -65,8 +65,8 @@ export function WorkingHoursView({ workingHoursRaw }: WorkingHoursViewProps) {
 
       {/* Emergency 24/7 Banner */}
       {hours.isEmergency24h && (
-        <div className="mt-3 flex items-start gap-2.5 rounded-xl bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200 ring-1 ring-amber-500/20">
-          <Zap className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="mt-3 flex items-start gap-2.5 rounded-xl bg-warning/10 p-3 text-xs text-foreground ring-1 ring-warning/20">
+          <Zap className="mt-0.5 size-4 shrink-0 text-warning" />
           <div>
             <span className="font-extrabold">خدمة الطوارئ ٢٤/٧:</span>
             <span className="mr-1">هذا الصنايعي يستقبل طلبات الطوارئ والأعطال المستعجلة على مدار الساعة طوال أيام الأسبوع.</span>

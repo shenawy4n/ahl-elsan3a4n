@@ -271,7 +271,7 @@ export function DataExport() {
         <div className="surface p-5 flex flex-col justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <FileSpreadsheet className="size-5 text-emerald-600 dark:text-emerald-400" />
+              <FileSpreadsheet className="size-5 text-success" />
               <h3 className="font-extrabold text-base">دليل الصنايعية (Excel CSV)</h3>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
@@ -292,7 +292,7 @@ export function DataExport() {
         <div className="surface p-5 flex flex-col justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <FileSpreadsheet className="size-5 text-blue-600 dark:text-blue-400" />
+              <FileSpreadsheet className="size-5 text-primary" />
               <h3 className="font-extrabold text-base">طلبات التسجيل (Excel CSV)</h3>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
@@ -313,7 +313,7 @@ export function DataExport() {
         <div className="surface p-5 flex flex-col justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <FileSpreadsheet className="size-5 text-amber-600 dark:text-amber-400" />
+              <FileSpreadsheet className="size-5 text-warning" />
               <h3 className="font-extrabold text-base">التقييمات والمراجعات (Excel CSV)</h3>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">

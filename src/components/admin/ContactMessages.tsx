@@ -28,9 +28,9 @@ type ContactMsg = {
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  new: { label: "جديدة", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" },
-  contacted: { label: "تم التواصل", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" },
-  resolved: { label: "تم الحل", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" },
+  new: { label: "جديدة", color: "bg-info/10 text-info border-info/20" },
+  contacted: { label: "تم التواصل", color: "bg-warning/10 text-warning border-warning/20" },
+  resolved: { label: "تم الحل", color: "bg-success/10 text-success border-success/20" },
   archived: { label: "مؤرشفة", color: "bg-secondary text-muted-foreground border-border" },
 };
 
@@ -192,7 +192,7 @@ export function ContactMessages() {
                         className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                       >
                         {copiedId === msg.id ? (
-                          <Check className="size-3.5 text-emerald-500" />
+                          <Check className="size-3.5 text-success" />
                         ) : (
                           <Copy className="size-3.5" />
                         )}
@@ -212,7 +212,7 @@ export function ContactMessages() {
                         target="_blank"
                         rel="noopener noreferrer"
                         title="محادثة واتساب"
-                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-700 transition-all shadow-xs"
+                        className="inline-flex items-center gap-1 rounded-lg bg-whatsapp px-2.5 py-1 text-xs font-bold text-whatsapp-foreground hover:brightness-105 transition-all shadow-xs"
                       >
                         <MessageCircle className="size-3" />
                         <span>واتساب</span>
@@ -233,7 +233,7 @@ export function ContactMessages() {
                     {msg.status !== "contacted" && (
                       <button
                         onClick={() => handleSetStatus(msg.id, "contacted")}
-                        className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-600 hover:bg-amber-500/20 transition-colors"
+                        className="rounded-lg border border-warning/30 bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning hover:bg-warning/20 transition-colors"
                       >
                         تم التواصل
                       </button>
@@ -241,7 +241,7 @@ export function ContactMessages() {
                     {msg.status !== "resolved" && (
                       <button
                         onClick={() => handleSetStatus(msg.id, "resolved")}
-                        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-600 hover:bg-emerald-500/20 transition-colors"
+                        className="rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-bold text-success hover:bg-success/20 transition-colors"
                       >
                         تم الحل
                       </button>

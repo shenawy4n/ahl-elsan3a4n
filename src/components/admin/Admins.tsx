@@ -327,7 +327,7 @@ export function Admins() {
                     </p>
                     {admin.is_owner ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[11px] font-black text-primary">
-                        <Crown className="size-3 text-amber-500" /> المالك الرئيسي (Owner)
+                        <Crown className="size-3 text-premium" /> المالك الرئيسي (Owner)
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 rounded-full bg-secondary border border-border px-2.5 py-0.5 text-[11px] font-bold text-foreground">
@@ -335,7 +335,7 @@ export function Admins() {
                       </span>
                     )}
                     {admin.active ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-bold text-success">
                         <CheckCircle2 className="size-2.5" /> نشط
                       </span>
                     ) : (
@@ -371,7 +371,7 @@ export function Admins() {
                       <button
                         onClick={() => handleTransferOwnership(admin)}
                         title="نقل الملكية الرئيسية لهذا المسؤول"
-                        className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold hover:bg-secondary text-amber-600 dark:text-amber-400 transition-colors"
+                        className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold hover:bg-secondary text-warning transition-colors"
                       >
                         <ArrowRightLeft className="size-3.5" />
                         <span>نقل الملكية</span>
@@ -383,8 +383,8 @@ export function Admins() {
                         title={admin.active ? "إيقاف الحساب" : "تفعيل الحساب"}
                         className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors ${
                           admin.active
-                            ? "border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
-                            : "border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+                            ? "border-warning/30 text-warning hover:bg-warning/10"
+                            : "border-success/30 text-success hover:bg-success/10"
                         }`}
                       >
                         <Power className="size-3.5" />

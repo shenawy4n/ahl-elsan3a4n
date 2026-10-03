@@ -42,30 +42,18 @@ export const allRatingSummariesQuery = {
 };
 
 export function ProviderRatingBadge({
-  providerId,
   summary,
 }: {
-  providerId: string;
+  providerId?: string;
   summary?: { average: number; count: number };
 }) {
-  const isValid = Boolean(
-    providerId &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(providerId)
-  );
-
-  const { data: allRatings } = useQuery({
-    ...allRatingSummariesQuery,
-    enabled: !summary && isValid,
-  });
-
-  const rating = summary ?? (providerId && allRatings ? allRatings[providerId] : undefined);
-  if (!rating || rating.count === 0) return null;
+  if (!summary || summary.count === 0) return null;
 
   return (
     <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-xs font-extrabold text-foreground" dir="ltr">
-      <Star className="size-3.5 fill-amber-400 text-amber-400 inline" />
-      <span>{rating.average.toFixed(1)}</span>
-      <span className="text-[11px] font-medium text-muted-foreground">({rating.count})</span>
+      <Star className="size-3.5 fill-premium text-premium inline" />
+      <span>{summary.average.toFixed(1)}</span>
+      <span className="text-[11px] font-medium text-muted-foreground">({summary.count})</span>
     </span>
   );
 }
@@ -88,8 +76,8 @@ export function VerifiedBadge() {
 
 export function EmergencyBadge() {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-black text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/40">
-      <Zap className="size-3.5 fill-current text-amber-500" /> طوارئ 24H
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-black text-warning ring-1 ring-warning/30">
+      <Zap className="size-3.5 fill-current" /> طوارئ 24H
     </span>
   );
 }
@@ -135,13 +123,13 @@ export function ProviderCard({
               <span
                 className={`inline-flex items-center gap-1 text-[11px] font-bold ${
                   openStatus.isOpen
-                    ? "text-emerald-600 dark:text-emerald-400"
+                    ? "text-success"
                     : "text-muted-foreground"
                 }`}
               >
                 <span
                   className={`size-1.5 rounded-full ${
-                    openStatus.isOpen ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/60"
+                    openStatus.isOpen ? "bg-success" : "bg-muted-foreground/60"
                   }`}
                 />
                 {openStatus.isOpen ? "مفتوح" : "مغلق"}

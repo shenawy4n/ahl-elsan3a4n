@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, useMemo } from "react";
 import { track } from "@/lib/track";
 import { ArrowRight, Search as SearchIcon, X, Loader2 } from "lucide-react";
-import { areasQuery, categoriesQuery, providersQuery } from "@/lib/directory";
+import { areasQuery, categoriesQuery, settingsQuery, providersQuery } from "@/lib/directory";
 import { ProviderCard } from "@/components/ProviderCard";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -26,6 +26,17 @@ export const Route = createFileRoute("/search")({
       ? { filter: s['filter'] }
       : {}),
   }),
+  loader: async ({ context }) => {
+    try {
+      await Promise.all([
+        context.queryClient.ensureQueryData(areasQuery),
+        context.queryClient.ensureQueryData(categoriesQuery),
+        context.queryClient.ensureQueryData(settingsQuery),
+      ]);
+    } catch {
+      // Fall through to component
+    }
+  },
   head: () => ({
     meta: [
       { title: "نتائج البحث — أهل الصنعة" },
@@ -42,9 +53,15 @@ function SearchPage() {
   const [q, setQ] = useState(params.q ?? "");
   const [area, setArea] = useState(params.area ?? "");
   const [filterMode, setFilterMode] = useState<AvailabilityFilterMode>(params.filter || "all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   // Debounce search query by 400ms to avoid network queries on every keystroke
   const debouncedQ = useDebounce(q, 400);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, area]);
 
   useEffect(() => {
     const t = debouncedQ.trim();
@@ -55,7 +72,13 @@ function SearchPage() {
 
   const areas = useQuery(areasQuery);
   const categories = useQuery(categoriesQuery);
-  const results = useQuery(providersQuery({ search: debouncedQ || undefined, areaId: area || undefined }));
+  const results = useQuery(
+    providersQuery({
+      search: debouncedQ || undefined,
+      areaId: area || undefined,
+      limit: page * PAGE_SIZE,
+    })
+  );
 
   const isDebouncing = q !== debouncedQ;
   const isSearching = isDebouncing || results.isFetching;
@@ -158,11 +181,26 @@ function SearchPage() {
             areas={areas.data ?? []}
           />
         ) : (
-          <div className="space-y-3">
-            {filteredProviders.map((p) => (
-              <ProviderCard key={p.id} provider={p} />
-            ))}
-          </div>
+          <>
+            <div className="space-y-3">
+              {filteredProviders.map((p) => (
+                <ProviderCard key={p.id} provider={p} />
+              ))}
+            </div>
+
+            {results.data && results.data.length >= page * PAGE_SIZE && (
+              <div className="pt-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={results.isFetching}
+                  className="min-h-[48px] rounded-2xl border border-border bg-card px-6 py-2.5 text-base font-extrabold text-foreground hover:bg-secondary active:scale-[0.98] transition-all shadow-xs disabled:opacity-60"
+                >
+                  {results.isFetching ? "جاري التحميل..." : "عرض المزيد من الصنايعية"}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 

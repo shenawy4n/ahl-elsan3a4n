@@ -125,7 +125,7 @@ export function ZeroSearchResults({
 
       {/* Action 1: If Availability or Emergency filter is active */}
       {filterMode !== "all" && onClearFilter && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200 text-start">
+        <div className="rounded-xl border border-warning/25 bg-warning/10 p-3 text-xs text-foreground text-start">
           <p className="font-bold">
             💡 ملاحظة: فلتر ({filterMode === "available_now" ? "متاح الآن" : "طوارئ ٢٤ ساعة"}) مفعل.
           </p>
@@ -193,7 +193,7 @@ export function ZeroSearchResults({
             {!showSuggestService ? (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Lightbulb className="size-4 text-amber-500 shrink-0" />
+                  <Lightbulb className="size-4 text-warning shrink-0" />
                   <span className="font-bold text-foreground">مش لاقي الخدمة اللي بتدور عليها؟</span>
                 </div>
                 <button
@@ -205,7 +205,7 @@ export function ZeroSearchResults({
                 </button>
               </div>
             ) : suggestDone ? (
-              <div className="flex items-center gap-2 text-emerald-600 font-bold py-1">
+              <div className="flex items-center gap-2 text-success font-bold py-1">
                 <Check className="size-4" />
                 <span>تم إرسال اقتراحك بنجاح! شكراً لمساعدتنا في تطوير الدليل.</span>
               </div>
@@ -213,7 +213,7 @@ export function ZeroSearchResults({
               <form onSubmit={handleSuggestService} className="grid gap-2 pt-1">
                 <div className="flex items-center justify-between font-bold text-foreground">
                   <span className="flex items-center gap-1.5">
-                    <Lightbulb className="size-4 text-amber-500" /> اقترح خدمة مش موجودة:
+                    <Lightbulb className="size-4 text-warning" /> اقترح خدمة مش موجودة:
                   </span>
                   <button
                     type="button"
@@ -268,7 +268,7 @@ export function ZeroSearchResults({
                 </button>
               </div>
             ) : nominateDone ? (
-              <div className="flex items-center gap-2 text-emerald-600 font-bold py-1">
+              <div className="flex items-center gap-2 text-success font-bold py-1">
                 <Check className="size-4" />
                 <span>تم إرسال ترشيح الصنايعي! سنقوم بمراجعته وإضافته للدليل.</span>
               </div>

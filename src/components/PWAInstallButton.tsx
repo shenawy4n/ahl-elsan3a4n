@@ -9,8 +9,8 @@ export function PWAInstallButton() {
   // If already installed, show small verified indicator
   if (isInstalled) {
     return (
-      <span className="hidden sm:inline-flex items-center gap-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300">
-        <CheckCircle2 className="size-3.5 text-emerald-500" />
+      <span className="hidden sm:inline-flex items-center gap-1 rounded-xl bg-success/10 border border-success/20 px-2.5 py-1 text-xs font-bold text-success">
+        <CheckCircle2 className="size-3.5 text-success" />
         <span>التطبيق مثبت</span>
       </span>
     );

@@ -80,7 +80,7 @@ export function Overview({ go }: { go: (tab: string, action?: string) => void })
         <button onClick={() => go("providers", "new")} className={btn}>+ إضافة صنايعي</button>
         <button onClick={() => go("categories", "new")} className={btn}>+ إضافة قسم</button>
         <button onClick={() => go("areas")} className={btn}>+ إضافة منطقة</button>
-        <button onClick={() => go("requests")} className={`${btnGhost} ${totalPendingRequests > 0 ? "border-amber-500/40 text-amber-600 dark:text-amber-400 font-extrabold" : ""}`}>
+        <button onClick={() => go("requests")} className={`${btnGhost} ${totalPendingRequests > 0 ? "border-warning/40 text-warning font-extrabold" : ""}`}>
           الطلبات والوارد {totalPendingRequests > 0 ? `(${totalPendingRequests})` : ""}
         </button>
         <button onClick={() => go("reviews")} className={`${btnGhost} ${pendingReviewsCount > 0 ? "border-primary/40 text-primary font-extrabold" : ""}`}>
@@ -91,9 +91,9 @@ export function Overview({ go }: { go: (tab: string, action?: string) => void })
 
       {/* Actionable Alerts for Pending Items if any */}
       {(totalPendingRequests > 0 || pendingReviewsCount > 0) && (
-        <div className="surface p-4 border border-amber-500/30 bg-amber-500/5 space-y-2.5">
+        <div className="surface p-4 border border-warning/30 bg-warning/5 space-y-2.5">
           <p className="text-sm font-extrabold text-foreground flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="size-2 rounded-full bg-warning" />
             تنبيهات تحتاج متابعة من الإدارة:
           </p>
           <div className="flex flex-wrap gap-2 text-xs">
@@ -127,10 +127,10 @@ export function Overview({ go }: { go: (tab: string, action?: string) => void })
             {pendingReviewsCount > 0 && (
               <button
                 onClick={() => go("reviews")}
-                className="px-3 py-1.5 rounded-lg bg-card border border-border font-bold hover:border-amber-500 transition-colors flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-lg bg-card border border-border font-bold hover:border-warning transition-colors flex items-center gap-1.5"
               >
                 <span>⭐ تقييمات قيد المراجعة:</span>
-                <span className="font-extrabold text-amber-500">{pendingReviewsCount}</span>
+                <span className="font-extrabold text-warning">{pendingReviewsCount}</span>
               </button>
             )}
           </div>
